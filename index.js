@@ -1,7 +1,7 @@
 class IterableAsyncStream {
   constructor() {
-    this._writeData = function () {};
-    this._pendingPromise = null;
+    this._writeData = () => {};
+    this.waitForNextDataBuffer();
   }
 
   write(data) {
