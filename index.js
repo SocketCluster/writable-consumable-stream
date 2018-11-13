@@ -16,7 +16,7 @@ class IterableAsyncStream {
     return (await this.next()).value;
   }
 
-  waitForNextDataBuffer() {
+  async waitForNextDataBuffer() {
     if (this._pendingPromise) {
       return this._pendingPromise;
     }
@@ -29,11 +29,9 @@ class IterableAsyncStream {
         }
       };
     });
-    return this._pendingPromise
-    .then((buffer) => {
-      delete this._pendingPromise;
-      return buffer;
-    });
+    const buffer = await this._pendingPromise;
+    delete this._pendingPromise;
+    return buffer;
   }
 
   async *createDataBufferStream() {
