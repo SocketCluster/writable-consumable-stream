@@ -1,3 +1,5 @@
+const END_SYMBOL = Symbol('end');
+
 class IterableAsyncStream {
   constructor() {
     this._writeData = () => {};
@@ -6,6 +8,10 @@ class IterableAsyncStream {
 
   write(data) {
     this._writeData(data);
+  }
+
+  end() {
+    this.write(END_SYMBOL);
   }
 
   next() {
@@ -44,6 +50,9 @@ class IterableAsyncStream {
     const dataBufferStream = this.createDataBufferStream();
     for await (const dataBuffer of dataBufferStream) {
       for (const data of dataBuffer) {
+        if (data === END_SYMBOL) {
+          return;
+        }
         yield data;
       }
     }
