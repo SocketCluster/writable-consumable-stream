@@ -27,7 +27,7 @@ class IterableAsyncStream {
       return this._pendingPromise;
     }
     this._pendingPromise = new Promise((resolve) => {
-      const dataBuffer = [];
+      let dataBuffer = [];
       this._writeData = (data) => {
         dataBuffer.push(data);
         if (dataBuffer.length === 1) {
@@ -35,7 +35,7 @@ class IterableAsyncStream {
         }
       };
     });
-    const buffer = await this._pendingPromise;
+    let buffer = await this._pendingPromise;
     delete this._pendingPromise;
     return buffer;
   }
@@ -47,9 +47,9 @@ class IterableAsyncStream {
   }
 
   async *createDataStream() {
-    const dataBufferStream = this.createDataBufferStream();
-    for await (const dataBuffer of dataBufferStream) {
-      for (const data of dataBuffer) {
+    let dataBufferStream = this.createDataBufferStream();
+    for await (let dataBuffer of dataBufferStream) {
+      for (let data of dataBuffer) {
         if (data === END_SYMBOL) {
           return;
         }
