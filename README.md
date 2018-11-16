@@ -9,7 +9,7 @@ npm install iterable-async-stream
 
 ## Usage
 
-### Consume stream and write to it asynchronously:
+### Consume a stream and write to it asynchronously:
 
 ```js
 let iterableStream = new IterableAsyncStream();
@@ -28,7 +28,7 @@ setInterval(() => {
 }, 100);
 ```
 
-### Consume filtered stream using an async generator:
+### Consume a filtered stream using an async generator:
 
 ```js
 let iterableStream = new IterableAsyncStream();
