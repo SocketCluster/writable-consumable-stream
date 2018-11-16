@@ -16,6 +16,10 @@ describe('IterableAsyncStream tests', () => {
     stream = new IterableAsyncStream();
   });
 
+  afterEach(async () => {
+    stream.end();
+  });
+
   it('should receive packets asynchronously', async () => {
     (async () => {
       for (let i = 0; i < 10; i++) {
