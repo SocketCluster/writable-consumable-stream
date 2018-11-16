@@ -3,7 +3,9 @@ An async stream which can be iterated over using a for-await-of loop.
 
 ## Installation
 
-`npm install iterable-async-stream`
+```
+npm install iterable-async-stream
+```
 
 ## Usage
 
