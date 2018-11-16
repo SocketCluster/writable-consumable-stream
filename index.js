@@ -2,7 +2,6 @@ const END_SYMBOL = Symbol('end');
 
 class IterableAsyncStream {
   constructor() {
-    this._writeData = () => {};
     this.waitForNextDataBuffer();
   }
 
