@@ -8,13 +8,13 @@ An async stream which can be iterated over using a for-await-of loop.
 ```js
 let iterableStream = new IterableAsyncStream();
 
-async function consumeAsyncStream(stream) {
-  // Consume stream data asynchronously.
-  for await (let packet of stream) {
+async function consumeAsyncIterable(iterable) {
+  // Consume iterable data asynchronously.
+  for await (let packet of iterable) {
     console.log('Packet:', packet);
   }
 }
-consumeAsyncStream(iterableStream);
+consumeAsyncIterable(iterableStream);
 
 setInterval(() => {
   // Write data to the stream asynchronously,
@@ -38,7 +38,7 @@ async function* createFilteredStreamGenerator(fullStream, filterFunction) {
 };
 
 async function consumeAsyncIterable(iterable) {
-  // Consume stream data asynchronously.
+  // Consume iterable data asynchronously.
   for await (let packet of iterable) {
     console.log('Packet:', packet);
   }
