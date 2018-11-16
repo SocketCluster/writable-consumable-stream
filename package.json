@@ -1,6 +1,6 @@
 {
   "name": "iterable-async-stream",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "An async stream which can be iterated over using a for-await-of loop.",
   "main": "index.js",
   "scripts": {
