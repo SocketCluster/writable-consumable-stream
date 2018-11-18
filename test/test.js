@@ -78,6 +78,7 @@ describe('WritableAsyncIterableStream', () => {
         await wait(10);
         stream.write('a' + i);
       }
+      stream.end();
     })();
 
     let count = 0;
@@ -94,6 +95,65 @@ describe('WritableAsyncIterableStream', () => {
     assert.equal(receivedPackets[1], 'nested0');
     assert.equal(receivedPackets[2], 'nested1');
     assert.equal(receivedPackets[10], 'nested9');
+  });
+
+  it('should not miss packets if it awaits inside a for-await-of loop', async () => {
+    (async () => {
+      for (let i = 0; i < 10; i++) {
+        await wait(2);
+        stream.write('a' + i);
+      }
+      stream.end();
+    })();
+
+    let receivedPackets = [];
+    for await (let packet of stream) {
+      receivedPackets.push(packet);
+      await wait(50)
+    }
+
+    assert.equal(receivedPackets.length, 10);
+    for (let i = 0; i < 10; i++) {
+      assert.equal(receivedPackets[i], 'a' + i);
+    }
+  });
+
+  it('should not miss packets if it awaits inside two concurrent for-await-of loops', async () => {
+    (async () => {
+      for (let i = 0; i < 10; i++) {
+        await wait(2);
+        stream.write('a' + i);
+      }
+      stream.end();
+    })();
+
+    let receivedPacketsA = [];
+    let receivedPacketsB = [];
+
+    await Promise.all([
+      (async () => {
+        for await (let packet of stream) {
+          receivedPacketsA.push(packet);
+          await wait(10)
+        }
+      })(),
+      (async () => {
+        for await (let packet of stream) {
+          receivedPacketsB.push(packet);
+          await wait(50)
+        }
+      })()
+    ]);
+
+    assert.equal(receivedPacketsA.length, 10);
+    for (let i = 0; i < 10; i++) {
+      assert.equal(receivedPacketsA[i], 'a' + i);
+    }
+
+    assert.equal(receivedPacketsB.length, 10);
+    for (let i = 0; i < 10; i++) {
+      assert.equal(receivedPacketsB[i], 'a' + i);
+    }
   });
 
   it('should receive next packet asynchronously when once() method is used', async () => {
