@@ -72,7 +72,7 @@ describe('WritableAsyncIterableStream', () => {
     assert.equal(receivedPackets[29], 'c9');
   });
 
-  it('should receive packets asynchronously if multiple packets are written sequentially', async () => {
+  it('should receive packets if stream is written to from inside a consuming for-await-of loop', async () => {
     (async () => {
       for (let i = 0; i < 3; i++) {
         await wait(10);
