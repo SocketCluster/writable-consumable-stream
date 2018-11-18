@@ -1,22 +1,33 @@
-const IterableAsyncStream = require('../index');
+const WritableAsyncIterableStream = require('../index');
 const assert = require('assert');
+
+let pendingTimeoutSet = new Set();
 
 function wait(duration) {
   return new Promise((resolve) => {
-    setTimeout(() => {
+    let timeout = setTimeout(() => {
+      pendingTimeoutSet.clear(timeout);
       resolve();
     }, duration);
+    pendingTimeoutSet.add(timeout);
   });
 }
 
-describe('IterableAsyncStream', () => {
+function cancelAllPendingWaits() {
+  for (let timeout of pendingTimeoutSet) {
+    clearTimeout(timeout);
+  }
+}
+
+describe('WritableAsyncIterableStream', () => {
   let stream;
 
   beforeEach(async () => {
-    stream = new IterableAsyncStream();
+    stream = new WritableAsyncIterableStream();
   });
 
   afterEach(async () => {
+    cancelAllPendingWaits();
     stream.end();
   });
 
@@ -83,5 +94,23 @@ describe('IterableAsyncStream', () => {
     assert.equal(receivedPackets[1], 'nested0');
     assert.equal(receivedPackets[2], 'nested1');
     assert.equal(receivedPackets[10], 'nested9');
+  });
+
+  it('should receive next packet asynchronously when once() method is used', async () => {
+    (async () => {
+      for (let i = 0; i < 3; i++) {
+        await wait(10);
+        stream.write('a' + i);
+      }
+    })();
+
+    let nextPacket = await stream.once();
+    assert.equal(nextPacket, 'a0');
+
+    nextPacket = await stream.once();
+    assert.equal(nextPacket, 'a1');
+
+    nextPacket = await stream.once();
+    assert.equal(nextPacket, 'a2');
   });
 });

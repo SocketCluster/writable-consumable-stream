@@ -1,7 +1,11 @@
+const AsyncIterableStream = require('async-iterable-stream');
 const END_SYMBOL = Symbol('end');
 
-class IterableAsyncStream {
+class WritableAsyncIterableStream extends AsyncIterableStream {
   constructor() {
+    super(() => {
+      return this.createDataStream();
+    });
     this.waitForNextDataBuffer();
   }
 
@@ -11,14 +15,6 @@ class IterableAsyncStream {
 
   end() {
     this.write(END_SYMBOL);
-  }
-
-  next() {
-    return this.createDataStream().next();
-  }
-
-  async once() {
-    return (await this.next()).value;
   }
 
   async waitForNextDataBuffer() {
@@ -56,10 +52,6 @@ class IterableAsyncStream {
       }
     }
   }
-
-  [Symbol.asyncIterator]() {
-    return this.createDataStream();
-  }
 }
 
-module.exports = IterableAsyncStream;
+module.exports = WritableAsyncIterableStream;
