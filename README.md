@@ -17,9 +17,9 @@ npm install writable-async-iterable-stream
 ```js
 let iterableStream = new WritableAsyncIterableStream();
 
-async function consumeAsyncIterable(iterable) {
+async function consumeAsyncIterable(asyncIterable) {
   // Consume iterable data asynchronously.
-  for await (let packet of iterable) {
+  for await (let packet of asyncIterable) {
     console.log('Packet:', packet);
   }
 }
@@ -46,9 +46,9 @@ async function* createFilteredStreamGenerator(fullStream, filterFunction) {
   }
 };
 
-async function consumeAsyncIterable(iterable) {
+async function consumeAsyncIterable(asyncIterable) {
   // Consume iterable data asynchronously.
-  for await (let packet of iterable) {
+  for await (let packet of asyncIterable) {
     console.log('Packet:', packet);
   }
 }
