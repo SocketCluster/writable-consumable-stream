@@ -67,5 +67,20 @@ setInterval(() => {
 }, 100);
 ```
 
+### Consume only the next data object which will be written to the stream:
+
+```js
+let iterableStream = new WritableAsyncIterableStream();
+
+(async () => {
+  let data = await iterableStream.once();
+  console.log(data);
+})();
+
+setInterval(() => {
+  // Write data to the stream asynchronously,
+  iterableStream.write(`Timestamp: ${Date.now()}`);
+}, 100);
+```
 
 See `test/` directory for additional examples.
