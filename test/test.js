@@ -190,4 +190,23 @@ describe('WritableAsyncIterableStream', () => {
     await wait(100);
     assert.equal(receivedPackets.length, 0);
   });
+
+  it('should not resolve previous once() call after stream.end() is called', async () => {
+    (async () => {
+      await wait(10);
+      stream.end();
+      await wait(10);
+      stream.write('foo');
+    })();
+
+    let receivedPackets = [];
+
+    (async () => {
+      let nextPacket = await stream.once();
+      receivedPackets.push(nextPacket);
+    })();
+
+    await wait(100);
+    assert.equal(receivedPackets.length, 0);
+  });
 });
