@@ -10,7 +10,9 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
   }
 
   write(data) {
-    this._writeData(data);
+    setTimeout(() => {
+      this._writeData(data);
+    }, 0);
   }
 
   end() {
