@@ -78,7 +78,6 @@ describe('WritableAsyncIterableStream', () => {
         await wait(10);
         stream.write('a' + i);
       }
-      stream.end();
     })();
 
     let count = 0;
@@ -90,15 +89,12 @@ describe('WritableAsyncIterableStream', () => {
         break;
       }
     }
-    assert.equal(receivedPackets.length, 11);
     assert.equal(receivedPackets[0], 'a0');
-    assert.equal(receivedPackets[1], 'nested0');
-    assert.equal(receivedPackets[2], 'nested1');
-    assert.equal(receivedPackets[10], 'nested9');
+    assert.equal(receivedPackets.some(message => message === 'nested0'), true);
   });
 
 
-  it('should receive packets which were written to stream within the same stack frame before consumer was created', async () => {
+  it('should receive packets which were written to stream within the same stack frame but before the consumer was created', async () => {
     for (let i = 0; i < 10; i++) {
       stream.write('a' + i);
     }
@@ -139,7 +135,7 @@ describe('WritableAsyncIterableStream', () => {
   it('should not miss packets if it awaits inside two concurrent for-await-of loops', async () => {
     (async () => {
       for (let i = 0; i < 10; i++) {
-        await wait(2);
+        await wait(10);
         stream.write('a' + i);
       }
       stream.end();
@@ -152,13 +148,13 @@ describe('WritableAsyncIterableStream', () => {
       (async () => {
         for await (let packet of stream) {
           receivedPacketsA.push(packet);
-          await wait(10)
+          await wait(5);
         }
       })(),
       (async () => {
         for await (let packet of stream) {
           receivedPacketsB.push(packet);
-          await wait(50)
+          await wait(50);
         }
       })()
     ]);
@@ -172,6 +168,64 @@ describe('WritableAsyncIterableStream', () => {
     for (let i = 0; i < 10; i++) {
       assert.equal(receivedPacketsB[i], 'a' + i);
     }
+  });
+
+  it('should be able to resume consumption after the stream has been ended', async () => {
+    (async () => {
+      for (let i = 0; i < 10; i++) {
+        await wait(10);
+        stream.write('a' + i);
+      }
+      stream.end();
+    })();
+
+    let receivedPacketsA = [];
+    for await (let packet of stream) {
+      receivedPacketsA.push(packet);
+    }
+
+    assert.equal(receivedPacketsA.length, 10);
+
+    (async () => {
+      for (let i = 0; i < 10; i++) {
+        await wait(10);
+        stream.write('b' + i);
+      }
+      stream.end();
+    })();
+
+    let receivedPacketsB = [];
+    for await (let packet of stream) {
+      receivedPacketsB.push(packet);
+    }
+
+    assert.equal(receivedPacketsB.length, 10);
+  });
+
+  it('should be able to resume consumption of messages written within the same stack frame after the stream has been ended', async () => {
+    for (let i = 0; i < 10; i++) {
+      stream.write('a' + i);
+    }
+    stream.end();
+
+    let receivedPacketsA = [];
+    for await (let packet of stream) {
+      receivedPacketsA.push(packet);
+    }
+
+    assert.equal(receivedPacketsA.length, 10);
+
+    for (let i = 0; i < 10; i++) {
+      stream.write('b' + i);
+    }
+    stream.end();
+
+    let receivedPacketsB = [];
+    for await (let packet of stream) {
+      receivedPacketsB.push(packet);
+    }
+
+    assert.equal(receivedPacketsB.length, 10);
   });
 
   it('should receive next packet asynchronously when once() method is used', async () => {
