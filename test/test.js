@@ -97,6 +97,24 @@ describe('WritableAsyncIterableStream', () => {
     assert.equal(receivedPackets[10], 'nested9');
   });
 
+
+  it('should receive packets which were written to stream within the same stack frame before consumer was created', async () => {
+    for (let i = 0; i < 10; i++) {
+      stream.write('a' + i);
+    }
+    stream.end();
+
+    let receivedPackets = [];
+    for await (let packet of stream) {
+      receivedPackets.push(packet);
+    }
+    assert.equal(receivedPackets.length, 10);
+    assert.equal(receivedPackets[0], 'a0');
+    assert.equal(receivedPackets[1], 'a1');
+    assert.equal(receivedPackets[2], 'a2');
+    assert.equal(receivedPackets[9], 'a9');
+  });
+
   it('should not miss packets if it awaits inside a for-await-of loop', async () => {
     (async () => {
       for (let i = 0; i < 10; i++) {
