@@ -94,21 +94,29 @@ describe('WritableAsyncIterableStream', () => {
   });
 
 
-  it('should receive packets which were written to stream within the same stack frame but before the consumer was created', async () => {
-    for (let i = 0; i < 10; i++) {
-      stream.write('a' + i);
-    }
-    stream.end();
+  it('should only consume messages which were written after the consumer was created', async () => {
+    stream.write('one');
+    stream.write('two');
 
     let receivedPackets = [];
-    for await (let packet of stream) {
-      receivedPackets.push(packet);
-    }
-    assert.equal(receivedPackets.length, 10);
-    assert.equal(receivedPackets[0], 'a0');
-    assert.equal(receivedPackets[1], 'a1');
-    assert.equal(receivedPackets[2], 'a2');
-    assert.equal(receivedPackets[9], 'a9');
+
+    let doneConsumingPromise = (async () => {
+      for await (let packet of stream) {
+        receivedPackets.push(packet);
+      }
+    })();
+
+    stream.write('three');
+    stream.write('four');
+    stream.write('five');
+    stream.end();
+
+    await doneConsumingPromise;
+
+    assert.equal(receivedPackets.length, 3);
+    assert.equal(receivedPackets[0], 'three');
+    assert.equal(receivedPackets[1], 'four');
+    assert.equal(receivedPackets[2], 'five');
   });
 
   it('should not miss packets if it awaits inside a for-await-of loop', async () => {
@@ -203,29 +211,42 @@ describe('WritableAsyncIterableStream', () => {
   });
 
   it('should be able to resume consumption of messages written within the same stack frame after the stream has been ended', async () => {
-    for (let i = 0; i < 10; i++) {
-      stream.write('a' + i);
-    }
+    stream.write('one');
+    stream.write('two');
+
+    let receivedPackets = [];
+
+    let doneConsumingPromiseA = (async () => {
+      for await (let packet of stream) {
+        receivedPackets.push(packet);
+      }
+    })();
+
+    stream.write('three');
+    stream.write('four');
+    stream.write('five');
     stream.end();
 
-    let receivedPacketsA = [];
-    for await (let packet of stream) {
-      receivedPacketsA.push(packet);
-    }
+    await doneConsumingPromiseA;
 
-    assert.equal(receivedPacketsA.length, 10);
+    let doneConsumingPromiseB = (async () => {
+      for await (let packet of stream) {
+        receivedPackets.push(packet);
+      }
+    })();
 
-    for (let i = 0; i < 10; i++) {
-      stream.write('b' + i);
-    }
+    stream.write('six');
+    stream.write('seven');
     stream.end();
 
-    let receivedPacketsB = [];
-    for await (let packet of stream) {
-      receivedPacketsB.push(packet);
-    }
+    await doneConsumingPromiseB;
 
-    assert.equal(receivedPacketsB.length, 10);
+    assert.equal(receivedPackets.length, 5);
+    assert.equal(receivedPackets[0], 'three');
+    assert.equal(receivedPackets[1], 'four');
+    assert.equal(receivedPackets[2], 'five');
+    assert.equal(receivedPackets[3], 'six');
+    assert.equal(receivedPackets[4], 'seven');
   });
 
   it('should receive next packet asynchronously when once() method is used', async () => {
