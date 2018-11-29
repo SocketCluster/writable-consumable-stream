@@ -1,54 +1,132 @@
 const AsyncIterableStream = require('async-iterable-stream');
+const LinkedList = require('./linked-list');
 const END_SYMBOL = Symbol('end');
 
 class WritableAsyncIterableStream extends AsyncIterableStream {
-  constructor() {
+  constructor(options) {
+    options = options || {};
     super(() => {
       return this.createDataStream();
     });
-    this.waitForNextDataBuffer();
+    this.consumerTimeout = options.consumerTimeout || 10000;
+    this._nextConsumerId = 1;
+    this._dataConsumers = {};
+    this._isConsumed = false;
+    this._dataLinkedList = new LinkedList();
   }
 
   write(data) {
-    this._writeData(data);
+    this._dataLinkedList.append(data);
+
+    let allStartNodes = new Set();
+    let deletedConsumerCount = 0;
+    let dataConsumerIds = Object.keys(this._dataConsumers);
+    dataConsumerIds.forEach((consumerId) => {
+      let consumer = this._dataConsumers[consumerId];
+      allStartNodes.add(consumer.startNode);
+
+      if (Date.now() - consumer.lastActivity >= this.consumerTimeout) {
+        delete this._dataConsumers[consumerId];
+        deletedConsumerCount++;
+        return;
+      }
+
+      let callback = consumer.callback;
+      if (callback) {
+        delete consumer.callback;
+        callback();
+      }
+    });
+
+    if (deletedConsumerCount >= dataConsumerIds.length) {
+      this._isConsumed = false;
+    }
+
+    let currentNode = this._dataLinkedList.head;
+    let newFirstNode;
+    let newFirstNodeIndex = 0;
+    while (currentNode) {
+      if (allStartNodes.has(currentNode)) {
+        newFirstNode = currentNode;
+        break;
+      }
+      newFirstNodeIndex++;
+      currentNode = currentNode.next;
+    }
+
+    if (newFirstNode) {
+      if (!newFirstNode.sentinel) {
+        this._dataLinkedList.head.next = newFirstNode;
+        this._dataLinkedList.length -= newFirstNodeIndex;
+      }
+    } else {
+      this._dataLinkedList.head.next = null;
+      this._dataLinkedList.tail = this._dataLinkedList.head;
+      this._dataLinkedList.length = 0;
+    }
   }
 
   end() {
     this.write(END_SYMBOL);
+    this._dataConsumers = {};
   }
 
-  async waitForNextDataBuffer() {
-    if (this._pendingPromise) {
-      return this._pendingPromise;
+  getBuffer() {
+    let buffer = [];
+    let currentNode = this._dataLinkedList.head.next;
+    while (currentNode) {
+      buffer.push(currentNode.value);
+      currentNode = currentNode.next;
     }
-    this._pendingPromise = new Promise((resolve) => {
-      let dataBuffer = [];
-      this._writeData = (data) => {
-        dataBuffer.push(data);
-        if (dataBuffer.length === 1) {
-          resolve(dataBuffer);
-        }
-      };
-    });
-    let buffer = await this._pendingPromise;
-    delete this._pendingPromise;
     return buffer;
   }
 
+  getConsumers() {
+    return Object.values(this._dataConsumers).map((consumer) => {
+      return {
+        lastActivity: consumer.lastActivity
+      };
+    });
+  }
+
+  get isConsumed() {
+    return this._isConsumed;
+  }
+
+  async _waitForNextDataBuffer(consumerId) {
+    return new Promise((resolve) => {
+      let currentConsumer = this._dataConsumers[consumerId];
+      let startNode = this._dataLinkedList.tail;
+      this._isConsumed = true;
+      this._dataConsumers[consumerId] = {
+        startNode,
+        lastActivity: Date.now(),
+        callback: () => {
+          resolve(startNode);
+        }
+      };
+    });
+  }
+
   async *createDataBufferStream() {
+    let consumerId = this._nextConsumerId++;
     while (true) {
-      yield this.waitForNextDataBuffer();
+      yield this._waitForNextDataBuffer(consumerId);
     }
   }
 
   async *createDataStream() {
     let dataBufferStream = this.createDataBufferStream();
-    for await (let dataBuffer of dataBufferStream) {
-      for (let data of dataBuffer) {
+    for await (let startNode of dataBufferStream) {
+      let currentNode = startNode;
+      currentNode = currentNode.next;
+      while (currentNode) {
+        let data = currentNode.value;
         if (data === END_SYMBOL) {
           return;
         }
         yield data;
+        currentNode = currentNode.next;
       }
     }
   }
