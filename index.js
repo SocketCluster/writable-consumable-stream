@@ -20,22 +20,23 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
   }
 
   _writeData(data) {
-    Object.keys(this._dataConsumers).forEach((key) => {
-      let buffer = this._dataConsumers[key].buffer;
-      buffer.push(data);
-
-      let callback = this._dataConsumers[key].callback;
-      callback();
+    Object.values(this._dataConsumers).forEach((consumer) => {
+      consumer.buffer.push(data);
+      let callback = consumer.callback;
+      if (callback) {
+        delete consumer.callback;
+        callback();
+      }
     });
   }
 
   async waitForNextDataBuffer(consumerId) {
     return new Promise((resolve) => {
-      let dataBuffer = [];
+      let buffer = [];
       this._dataConsumers[consumerId] = {
-        buffer: dataBuffer,
+        buffer,
         callback: () => {
-          resolve(dataBuffer);
+          resolve(buffer);
         }
       };
     });
