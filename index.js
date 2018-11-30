@@ -2,25 +2,23 @@ const AsyncIterableStream = require('async-iterable-stream');
 const END_SYMBOL = Symbol('end');
 
 class WritableAsyncIterableStream extends AsyncIterableStream {
-  constructor() {
+  constructor(options) {
+    options = options || {};
     super(() => {
       return this.createDataStream();
     });
+    this.bufferTimeout = options.bufferTimeout || 10000;
     this._nextId = 1;
-    // TODO: Cleanup inactive consumers
     this._dataConsumers = {};
   }
 
-  write(data) {
-    this._writeData(data);
-  }
-
-  end() {
-    this.write(END_SYMBOL);
-  }
-
-  _writeData(data) {
-    Object.values(this._dataConsumers).forEach((consumer) => {
+  write(data) { // TODO 2
+    Object.keys(this._dataConsumers).forEach((consumerId) => {
+      let consumer = this._dataConsumers[consumerId];
+      if (Date.now() - consumer.time >= this.bufferTimeout) {
+        delete this._dataConsumers[consumerId];
+        return;
+      }
       consumer.buffer.push(data);
       let callback = consumer.callback;
       if (callback) {
@@ -30,10 +28,15 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
     });
   }
 
+  end() {
+    this.write(END_SYMBOL);
+  }
+
   async waitForNextDataBuffer(consumerId) {
     return new Promise((resolve) => {
       let buffer = [];
       this._dataConsumers[consumerId] = {
+        time: Date.now(),
         buffer,
         callback: () => {
           resolve(buffer);
@@ -54,6 +57,7 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
     for await (let dataBuffer of dataBufferStream) {
       for (let data of dataBuffer) {
         if (data === END_SYMBOL) {
+          delete this._dataConsumers[consumerId];
           return;
         }
         yield data;

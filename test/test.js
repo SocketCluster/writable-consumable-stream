@@ -93,7 +93,6 @@ describe('WritableAsyncIterableStream', () => {
     assert.equal(receivedPackets.some(message => message === 'nested0'), true);
   });
 
-
   it('should only consume messages which were written after the consumer was created', async () => {
     stream.write('one');
     stream.write('two');
@@ -131,7 +130,7 @@ describe('WritableAsyncIterableStream', () => {
     let receivedPackets = [];
     for await (let packet of stream) {
       receivedPackets.push(packet);
-      await wait(50)
+      await wait(50);
     }
 
     assert.equal(receivedPackets.length, 10);
