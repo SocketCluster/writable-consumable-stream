@@ -8,7 +8,7 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
     super(() => {
       return this.createDataStream();
     });
-    this.bufferTimeout = options.bufferTimeout || 10000;
+    this.consumerTimeout = options.consumerTimeout || 10000;
     this._nextId = 1;
     this._dataConsumers = {};
     this._dataLinkedList = new LinkedList();
@@ -22,7 +22,7 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
       let consumer = this._dataConsumers[consumerId];
       allStartNodes.add(consumer.startNode);
 
-      if (Date.now() - consumer.time >= this.bufferTimeout) {
+      if (Date.now() - consumer.time >= this.consumerTimeout) {
         delete this._dataConsumers[consumerId];
         return;
       }
@@ -60,9 +60,10 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
 
   end() {
     this.write(END_SYMBOL);
+    this._dataConsumers = {};
   }
 
-  async waitForNextDataBuffer(consumerId) {
+  async _waitForNextDataBuffer(consumerId) {
     return new Promise((resolve) => {
       let currentConsumer = this._dataConsumers[consumerId];
       let startNode = this._dataLinkedList.tail;
@@ -76,15 +77,15 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
     });
   }
 
-  async *createDataBufferStream(consumerId) {
+  async *createDataBufferStream() {
+    let consumerId = this._nextId++;
     while (true) {
-      yield this.waitForNextDataBuffer(consumerId);
+      yield this._waitForNextDataBuffer(consumerId);
     }
   }
 
   async *createDataStream() {
-    let consumerId = this._nextId++;
-    let dataBufferStream = this.createDataBufferStream(consumerId);
+    let dataBufferStream = this.createDataBufferStream();
     for await (let startNode of dataBufferStream) {
       let currentNode = startNode;
       currentNode = currentNode.next;
