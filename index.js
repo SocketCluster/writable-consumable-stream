@@ -4,10 +4,10 @@ const END_SYMBOL = Symbol('end');
 
 class WritableAsyncIterableStream extends AsyncIterableStream {
   constructor(options) {
-    options = options || {};
     super(() => {
       return this.createDataStream();
     });
+    options = options || {};
     this.consumerTimeout = options.consumerTimeout || 10000;
     this._nextConsumerId = 1;
     this._dataConsumers = {};
