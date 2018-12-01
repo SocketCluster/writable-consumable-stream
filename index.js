@@ -9,9 +9,9 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
     });
     options = options || {};
     this.consumerTimeout = options.consumerTimeout || 10000;
+    this.isConsumed = false;
     this._nextConsumerId = 1;
     this._dataConsumers = {};
-    this._isConsumed = false;
     this._dataLinkedList = new LinkedList();
   }
 
@@ -39,7 +39,7 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
     });
 
     if (deletedConsumerCount >= dataConsumerIds.length) {
-      this._isConsumed = false;
+      this.isConsumed = false;
     }
 
     let currentNode = this._dataLinkedList.head;
@@ -89,15 +89,11 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
     });
   }
 
-  get isConsumed() {
-    return this._isConsumed;
-  }
-
   async _waitForNextDataBuffer(consumerId) {
     return new Promise((resolve) => {
       let currentConsumer = this._dataConsumers[consumerId];
       let startNode = this._dataLinkedList.tail;
-      this._isConsumed = true;
+      this.isConsumed = true;
       this._dataConsumers[consumerId] = {
         startNode,
         lastActivity: Date.now(),
