@@ -9,7 +9,7 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
       return this.createDataStream();
     });
     this.consumerTimeout = options.consumerTimeout || 10000;
-    this._nextId = 1;
+    this._nextConsumerId = 1;
     this._dataConsumers = {};
     this._dataLinkedList = new LinkedList();
   }
@@ -78,7 +78,7 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
   }
 
   async *createDataBufferStream() {
-    let consumerId = this._nextId++;
+    let consumerId = this._nextConsumerId++;
     while (true) {
       yield this._waitForNextDataBuffer(consumerId);
     }
