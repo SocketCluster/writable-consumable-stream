@@ -24,6 +24,7 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
     this._cleanupIntervalId = setInterval(() => {
       let remainingConsumers = this.cleanupConsumers();
       if (remainingConsumers <= 0) {
+        this.cleanupBuffer();
         clearInterval(this._cleanupIntervalId);
         this._cleanupIntervalId = null;
       }
