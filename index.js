@@ -6,8 +6,8 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
     super(() => {
       return this.createDataStream();
     });
-    this._nextConsumerId = 1;
     this._consumers = {};
+    this._nextConsumerId = 1;
     this._linkedListTailNode = {value: undefined, next: null, sentinel: true};
   }
 
