@@ -8,8 +8,8 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
       return this.createDataStream();
     });
     options = options || {};
-    this.consumerTimeout = options.consumerTimeout || 10000;
-    this.cleanupInterval = options.cleanupInterval || 5000;
+    this.consumerTimeout = options.consumerTimeout || 30000;
+    this.cleanupInterval = options.cleanupInterval || 10000;
     this.hasConsumer = false;
     this._nextConsumerId = 1;
     this._dataConsumers = {};
