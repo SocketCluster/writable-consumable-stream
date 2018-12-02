@@ -329,7 +329,7 @@ describe('WritableAsyncIterableStream', () => {
       assert.equal(stream._consumers.length, 0); // Check internal cleanup.
     });
 
-    it('should resolve once() if called after stream.end() is called and a new packet is written', async () => {
+    it('should resolve once() if it is called after stream.end() is called and then a new packet is written', async () => {
       (async () => {
         await wait(10);
         stream.end();
@@ -345,6 +345,8 @@ describe('WritableAsyncIterableStream', () => {
       })();
 
       await wait(100);
+
+      assert.equal(receivedPackets.length, 0);
 
       (async () => {
         await wait(10);
