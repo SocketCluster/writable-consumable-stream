@@ -340,4 +340,5 @@ describe('WritableAsyncIterableStream', () => {
       assert.equal(packet, 'bar');
     });
   });
+
 });
