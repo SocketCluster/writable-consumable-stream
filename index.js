@@ -6,8 +6,7 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
     super(() => {
       return this.createDataStream();
     });
-    this._consumers = {};
-    this._nextConsumerId = 1;
+    this._consumers = [];
     this._linkedListTailNode = {value: undefined, next: null, sentinel: true};
   }
 
@@ -15,34 +14,31 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
     let dataNode = {value: data, next: null};
     this._linkedListTailNode.next = dataNode;
     this._linkedListTailNode = dataNode;
-    Object.keys(this._consumers).forEach((consumerId) => {
-      let consumer = this._consumers[consumerId];
-      delete this._consumers[consumerId];
-      consumer.callback();
-    });
+    let len = this._consumers.length;
+    for (let i = 0; i < len; i++) {
+      this._consumers[i].callback();
+    }
+    this._consumers = [];
   }
 
   end() {
     this.write(END_SYMBOL);
   }
 
-  async _waitForNextDataBuffer(consumerId) {
+  async _waitForNextDataBuffer() {
     return new Promise((resolve) => {
-      let currentConsumer = this._consumers[consumerId];
       let startNode = this._linkedListTailNode;
-      this._consumers[consumerId] = {
-        startNode,
+      this._consumers.push({
         callback: () => {
           resolve(startNode);
         }
-      };
+      });
     });
   }
 
   async *createDataBufferStream() {
-    let consumerId = this._nextConsumerId++;
     while (true) {
-      yield this._waitForNextDataBuffer(consumerId);
+      yield this._waitForNextDataBuffer();
     }
   }
 
