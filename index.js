@@ -9,28 +9,52 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
     });
     options = options || {};
     this.consumerTimeout = options.consumerTimeout || 10000;
-    this.isConsumed = false;
+    this.cleanupInterval = options.cleanupInterval || 5000;
+    this.hasConsumer = false;
     this._nextConsumerId = 1;
     this._dataConsumers = {};
     this._dataLinkedList = new LinkedList();
+    this._cleanupIntervalId = null;
   }
 
-  write(data) {
-    this._dataLinkedList.append(data);
+  _launchCleanupInterval() {
+    if (this._cleanupIntervalId != null) {
+      return;
+    }
+    this._cleanupIntervalId = setInterval(() => {
+      let remainingConsumers = this.cleanupExpiredConsumers();
+      if (remainingConsumers <= 0) {
+        clearInterval(this._cleanupIntervalId);
+        this._cleanupIntervalId = null;
+      }
+    }, this.cleanupInterval);
+  }
 
-    let allStartNodes = new Set();
+  cleanupExpiredConsumers() {
     let deletedConsumerCount = 0;
     let dataConsumerIds = Object.keys(this._dataConsumers);
     dataConsumerIds.forEach((consumerId) => {
       let consumer = this._dataConsumers[consumerId];
-      allStartNodes.add(consumer.startNode);
 
       if (Date.now() - consumer.lastActivity >= this.consumerTimeout) {
         delete this._dataConsumers[consumerId];
         deletedConsumerCount++;
-        return;
       }
+    });
 
+    let remainingConsumers = dataConsumerIds.length - deletedConsumerCount;
+
+    if (remainingConsumers <= 0) {
+      this.hasConsumer = false;
+    }
+    return remainingConsumers;
+  }
+
+  write(data) {
+    let allStartNodes = new Set();
+
+    Object.values(this._dataConsumers).forEach((consumer) => {
+      allStartNodes.add(consumer.startNode);
       let callback = consumer.callback;
       if (callback) {
         delete consumer.callback;
@@ -38,10 +62,7 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
       }
     });
 
-    if (deletedConsumerCount >= dataConsumerIds.length) {
-      this.isConsumed = false;
-    }
-
+    this._dataLinkedList.append(data);
     let currentNode = this._dataLinkedList.head;
     let newFirstNode;
     let newFirstNodeIndex = 0;
@@ -81,9 +102,10 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
     return buffer;
   }
 
-  getConsumers() {
+  getConsumerDetails() {
     return Object.values(this._dataConsumers).map((consumer) => {
       return {
+        id: consumer.id,
         lastActivity: consumer.lastActivity
       };
     });
@@ -93,8 +115,9 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
     return new Promise((resolve) => {
       let currentConsumer = this._dataConsumers[consumerId];
       let startNode = this._dataLinkedList.tail;
-      this.isConsumed = true;
+      this.hasConsumer = true;
       this._dataConsumers[consumerId] = {
+        id: consumerId,
         startNode,
         lastActivity: Date.now(),
         callback: () => {
@@ -106,6 +129,7 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
 
   async *createDataBufferStream() {
     let consumerId = this._nextConsumerId++;
+    this._launchCleanupInterval();
     while (true) {
       yield this._waitForNextDataBuffer(consumerId);
     }
