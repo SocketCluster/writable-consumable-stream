@@ -46,6 +46,7 @@ describe('WritableAsyncIterableStream', () => {
         receivedPackets.push(packet);
       }
       assert.equal(receivedPackets.length, 10);
+      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
     });
 
     it('should receive packets asynchronously if multiple packets are written sequentially', async () => {
@@ -71,6 +72,7 @@ describe('WritableAsyncIterableStream', () => {
       assert.equal(receivedPackets[4], 'b1');
       assert.equal(receivedPackets[5], 'c1');
       assert.equal(receivedPackets[29], 'c9');
+      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
     });
 
     it('should receive packets if stream is written to from inside a consuming for-await-of loop', async () => {
@@ -92,6 +94,7 @@ describe('WritableAsyncIterableStream', () => {
       }
       assert.equal(receivedPackets[0], 'a0');
       assert.equal(receivedPackets.some(message => message === 'nested0'), true);
+      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
     });
 
     it('should only consume messages which were written after the consumer was created', async () => {
@@ -117,6 +120,7 @@ describe('WritableAsyncIterableStream', () => {
       assert.equal(receivedPackets[0], 'three');
       assert.equal(receivedPackets[1], 'four');
       assert.equal(receivedPackets[2], 'five');
+      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
     });
 
     it('should not miss packets if it awaits inside a for-await-of loop', async () => {
@@ -138,6 +142,7 @@ describe('WritableAsyncIterableStream', () => {
       for (let i = 0; i < 10; i++) {
         assert.equal(receivedPackets[i], 'a' + i);
       }
+      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
     });
 
     it('should not miss packets if it awaits inside two concurrent for-await-of loops', async () => {
@@ -176,6 +181,7 @@ describe('WritableAsyncIterableStream', () => {
       for (let i = 0; i < 10; i++) {
         assert.equal(receivedPacketsB[i], 'a' + i);
       }
+      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
     });
 
     it('should be able to resume consumption after the stream has been ended', async () => {
@@ -208,6 +214,7 @@ describe('WritableAsyncIterableStream', () => {
       }
 
       assert.equal(receivedPacketsB.length, 10);
+      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
     });
 
     it('should be able to resume consumption of messages written within the same stack frame after the stream has been ended', async () => {
@@ -247,6 +254,8 @@ describe('WritableAsyncIterableStream', () => {
       assert.equal(receivedPackets[2], 'five');
       assert.equal(receivedPackets[3], 'six');
       assert.equal(receivedPackets[4], 'seven');
+
+      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
     });
   });
 
@@ -276,6 +285,8 @@ describe('WritableAsyncIterableStream', () => {
 
       nextPacket = await stream.once();
       assert.equal(nextPacket, 'a2');
+
+      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
     });
 
     it('should not resolve once() call when stream.end() is called', async () => {
@@ -293,6 +304,8 @@ describe('WritableAsyncIterableStream', () => {
 
       await wait(100);
       assert.equal(receivedPackets.length, 0);
+
+      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
     });
 
     it('should not resolve previous once() call after stream.end() is called', async () => {
@@ -312,6 +325,8 @@ describe('WritableAsyncIterableStream', () => {
 
       await wait(100);
       assert.equal(receivedPackets.length, 0);
+
+      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
     });
 
     it('should resolve once() if called after stream.end() is called and a new packet is written', async () => {
@@ -338,6 +353,8 @@ describe('WritableAsyncIterableStream', () => {
 
       let packet = await stream.once();
       assert.equal(packet, 'bar');
+
+      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
     });
   });
 
