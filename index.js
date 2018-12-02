@@ -22,7 +22,7 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
       return;
     }
     this._cleanupIntervalId = setInterval(() => {
-      let remainingConsumers = this.cleanupExpiredConsumers();
+      let remainingConsumers = this.cleanupConsumers();
       if (remainingConsumers <= 0) {
         clearInterval(this._cleanupIntervalId);
         this._cleanupIntervalId = null;
@@ -30,7 +30,7 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
     }, this.cleanupInterval);
   }
 
-  cleanupExpiredConsumers() {
+  cleanupConsumers() {
     let deletedConsumerCount = 0;
     let dataConsumerIds = Object.keys(this._dataConsumers);
     dataConsumerIds.forEach((consumerId) => {
@@ -50,31 +50,24 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
     return remainingConsumers;
   }
 
-  write(data) {
-    let allStartNodes = new Set();
-
-    Object.values(this._dataConsumers).forEach((consumer) => {
-      allStartNodes.add(consumer.startNode);
-      let callback = consumer.callback;
-      if (callback) {
-        delete consumer.callback;
-        callback();
-      }
+  _cleanupBuffer(dataConsumerList) {
+    let consumerStartNodes = new Set();
+    dataConsumerList.forEach((consumer) => {
+      consumerStartNodes.add(consumer.startNode);
     });
 
-    this._dataLinkedList.append(data);
     let currentNode = this._dataLinkedList.head;
     let newFirstNode;
-    let newFirstNodeIndex = 0;
+    let newFirstNodeIndex = -1;
+
     while (currentNode) {
-      if (allStartNodes.has(currentNode)) {
+      if (consumerStartNodes.has(currentNode)) {
         newFirstNode = currentNode;
         break;
       }
       newFirstNodeIndex++;
       currentNode = currentNode.next;
     }
-
     if (newFirstNode) {
       if (!newFirstNode.sentinel) {
         this._dataLinkedList.head.next = newFirstNode;
@@ -85,6 +78,24 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
       this._dataLinkedList.tail = this._dataLinkedList.head;
       this._dataLinkedList.length = 0;
     }
+  }
+
+  cleanupBuffer() {
+    this._cleanupBuffer(Object.values(this._dataConsumers));
+    return this._dataLinkedList.length;
+  }
+
+  write(data) {
+    this._dataLinkedList.append(data);
+    let dataConsumerList = Object.values(this._dataConsumers);
+    dataConsumerList.forEach((consumer) => {
+      let callback = consumer.callback;
+      if (callback) {
+        delete consumer.callback;
+        callback();
+      }
+    });
+    this._cleanupBuffer(dataConsumerList);
   }
 
   end() {

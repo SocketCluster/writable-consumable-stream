@@ -9,6 +9,7 @@ class LinkedList {
     let node = {value, next: null};
     this.tail.next = node;
     this.tail = node;
+    this.length++;
   }
 }
 
