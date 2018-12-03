@@ -359,5 +359,4 @@ describe('WritableAsyncIterableStream', () => {
       assert.equal(stream._consumers.length, 0); // Check internal cleanup.
     });
   });
-
 });

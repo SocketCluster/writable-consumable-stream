@@ -7,7 +7,11 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
       return this.createDataStream();
     });
     this._consumers = [];
-    this._linkedListTailNode = {value: undefined, next: null, sentinel: true};
+    this._linkedListTailNode = {
+      value: undefined,
+      next: null,
+      sentinel: true
+    };
   }
 
   write(data) {
@@ -25,7 +29,7 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
     this.write(END_SYMBOL);
   }
 
-  async _waitForNextDataBuffer() {
+  async _waitForNextNodePointer() {
     return new Promise((resolve) => {
       let startNode = this._linkedListTailNode;
       this._consumers.push({
@@ -36,15 +40,15 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
     });
   }
 
-  async *createDataBufferStream() {
+  async *_createNodePointerStream() {
     while (true) {
-      yield this._waitForNextDataBuffer();
+      yield this._waitForNextNodePointer();
     }
   }
 
   async *createDataStream() {
-    let dataBufferStream = this.createDataBufferStream();
-    for await (let startNode of dataBufferStream) {
+    let dataPointerStream = this._createNodePointerStream();
+    for await (let startNode of dataPointerStream) {
       let currentNode = startNode.next;
       while (currentNode) {
         let data = currentNode.value;
