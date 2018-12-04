@@ -44,7 +44,7 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
     return {
       next: async () => {
         if (currentNode === this._linkedListTailNode) {
-          await this._waitForNextDataNode(currentNode);
+          await this._waitForNextDataNode();
         }
         currentNode = currentNode.next;
         return currentNode.data;
