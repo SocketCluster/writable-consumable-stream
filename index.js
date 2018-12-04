@@ -1,5 +1,4 @@
 const AsyncIterableStream = require('async-iterable-stream');
-const END_SYMBOL = Symbol('end');
 
 class WritableAsyncIterableStream extends AsyncIterableStream {
   constructor() {
@@ -7,58 +6,50 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
       return this.createDataStream();
     });
     this._consumers = [];
-    this._linkedListTailNode = {
-      value: undefined,
-      next: null,
-      sentinel: true
-    };
+    this._linkedListTailNode = {next: null};
   }
 
-  write(data) {
-    let dataNode = {value: data, next: null};
+  _write(value, done) {
+    let dataNode = {
+      data: {value, done},
+      next: null
+    };
     this._linkedListTailNode.next = dataNode;
     this._linkedListTailNode = dataNode;
     let len = this._consumers.length;
     for (let i = 0; i < len; i++) {
-      this._consumers[i].callback();
+      this._consumers[i]();
     }
     this._consumers = [];
   }
 
-  end() {
-    this.write(END_SYMBOL);
+  write(value) {
+    this._write(value, false);
   }
 
-  async _waitForNextNodePointer() {
+  end() {
+    this._write(undefined, true);
+  }
+
+  async _waitForNextDataNode() {
     return new Promise((resolve) => {
-      let startNode = this._linkedListTailNode;
-      this._consumers.push({
-        callback: () => {
-          resolve(startNode);
-        }
+      this._consumers.push(() => {
+        resolve();
       });
     });
   }
 
-  async *_createNodePointerStream() {
-    while (true) {
-      yield this._waitForNextNodePointer();
-    }
-  }
-
-  async *createDataStream() {
-    let dataPointerStream = this._createNodePointerStream();
-    for await (let startNode of dataPointerStream) {
-      let currentNode = startNode.next;
-      while (currentNode) {
-        let data = currentNode.value;
-        if (data === END_SYMBOL) {
-          return;
+  createDataStream() {
+    let currentNode = this._linkedListTailNode;
+    return {
+      next: async () => {
+        if (currentNode === this._linkedListTailNode) {
+          await this._waitForNextDataNode(currentNode);
         }
-        yield data;
         currentNode = currentNode.next;
+        return currentNode.data;
       }
-    }
+    };
   }
 }
 
