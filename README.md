@@ -31,6 +31,29 @@ setInterval(() => {
 }, 100);
 ```
 
+### Consume a stream using a while loop:
+
+```js
+let iterableStream = new WritableAsyncIterableStream();
+
+async function consumeAsyncIterable(asyncIterable) {
+  // Consume iterable data asynchronously.
+  // Works in older environments.
+  let asyncIterator = stream.createAsyncIterator();
+  while (true) {
+    let packet = await asyncIterator.next();
+    if (packet.done) break;
+    console.log('Packet:', packet.value);
+  }
+}
+consumeAsyncIterable(iterableStream);
+
+setInterval(() => {
+  // Write data to the stream asynchronously,
+  iterableStream.write(`Timestamp: ${Date.now()}`);
+}, 100);
+```
+
 ### Consume a filtered stream using an async generator:
 
 ```js
