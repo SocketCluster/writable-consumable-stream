@@ -2,9 +2,7 @@ const AsyncIterableStream = require('async-iterable-stream');
 
 class WritableAsyncIterableStream extends AsyncIterableStream {
   constructor() {
-    super(() => {
-      return this.createDataStream();
-    });
+    super();
     this._consumers = [];
     this._linkedListTailNode = {next: null};
   }
@@ -39,7 +37,12 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
     });
   }
 
-  createDataStream() {
+  async next() {
+    await this._waitForNextDataNode();
+    return this._linkedListTailNode.data;
+  }
+
+  createStream() {
     let currentNode = this._linkedListTailNode;
     return {
       next: async () => {
