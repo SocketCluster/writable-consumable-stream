@@ -37,11 +37,6 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
     });
   }
 
-  async next() {
-    await this._waitForNextDataNode();
-    return this._linkedListTailNode.data;
-  }
-
   createAsyncIterator() {
     let currentNode = this._linkedListTailNode;
     return {
