@@ -27,6 +27,6 @@
     "mocha": "^5.2.0"
   },
   "dependencies": {
-    "async-iterable-stream": "^2.1.0"
+    "async-iterable-stream": "^3.0.0"
   }
 }
