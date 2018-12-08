@@ -29,7 +29,7 @@ describe('WritableAsyncIterableStream', () => {
 
     afterEach(async () => {
       cancelAllPendingWaits();
-      stream.end();
+      stream.close();
     });
 
     it('should receive packets asynchronously', async () => {
@@ -38,7 +38,7 @@ describe('WritableAsyncIterableStream', () => {
           await wait(10);
           stream.write('hello' + i);
         }
-        stream.end();
+        stream.close();
       })();
 
       let receivedPackets = [];
@@ -57,7 +57,7 @@ describe('WritableAsyncIterableStream', () => {
           stream.write('b' + i);
           stream.write('c' + i);
         }
-        stream.end();
+        stream.close();
       })();
 
       let receivedPackets = [];
@@ -112,7 +112,7 @@ describe('WritableAsyncIterableStream', () => {
       stream.write('three');
       stream.write('four');
       stream.write('five');
-      stream.end();
+      stream.close();
 
       await doneConsumingPromise;
 
@@ -129,7 +129,7 @@ describe('WritableAsyncIterableStream', () => {
           await wait(2);
           stream.write('a' + i);
         }
-        stream.end();
+        stream.close();
       })();
 
       let receivedPackets = [];
@@ -151,7 +151,7 @@ describe('WritableAsyncIterableStream', () => {
           await wait(10);
           stream.write('a' + i);
         }
-        stream.end();
+        stream.close();
       })();
 
       let receivedPacketsA = [];
@@ -190,7 +190,7 @@ describe('WritableAsyncIterableStream', () => {
           await wait(10);
           stream.write('a' + i);
         }
-        stream.end();
+        stream.close();
       })();
 
       let receivedPacketsA = [];
@@ -205,7 +205,7 @@ describe('WritableAsyncIterableStream', () => {
           await wait(10);
           stream.write('b' + i);
         }
-        stream.end();
+        stream.close();
       })();
 
       let receivedPacketsB = [];
@@ -232,7 +232,7 @@ describe('WritableAsyncIterableStream', () => {
       stream.write('three');
       stream.write('four');
       stream.write('five');
-      stream.end();
+      stream.close();
 
       await doneConsumingPromiseA;
 
@@ -244,7 +244,7 @@ describe('WritableAsyncIterableStream', () => {
 
       stream.write('six');
       stream.write('seven');
-      stream.end();
+      stream.close();
 
       await doneConsumingPromiseB;
 
@@ -266,7 +266,7 @@ describe('WritableAsyncIterableStream', () => {
 
     afterEach(async () => {
       cancelAllPendingWaits();
-      stream.end();
+      stream.close();
     });
 
     it('should receive next packet asynchronously when once() method is used', async () => {
@@ -289,10 +289,10 @@ describe('WritableAsyncIterableStream', () => {
       assert.equal(stream._consumers.length, 0); // Check internal cleanup.
     });
 
-    it('should not resolve once() call when stream.end() is called', async () => {
+    it('should not resolve once() call when stream.close() is called', async () => {
       (async () => {
         await wait(10);
-        stream.end();
+        stream.close();
       })();
 
       let receivedPackets = [];
@@ -308,10 +308,10 @@ describe('WritableAsyncIterableStream', () => {
       assert.equal(stream._consumers.length, 0); // Check internal cleanup.
     });
 
-    it('should not resolve previous once() call after stream.end() is called', async () => {
+    it('should not resolve previous once() call after stream.close() is called', async () => {
       (async () => {
         await wait(10);
-        stream.end();
+        stream.close();
         await wait(10);
         stream.write('foo');
       })();
@@ -329,10 +329,10 @@ describe('WritableAsyncIterableStream', () => {
       assert.equal(stream._consumers.length, 0); // Check internal cleanup.
     });
 
-    it('should resolve once() if it is called after stream.end() is called and then a new packet is written', async () => {
+    it('should resolve once() if it is called after stream.close() is called and then a new packet is written', async () => {
       (async () => {
         await wait(10);
-        stream.end();
+        stream.close();
         await wait(10);
         stream.write('foo');
       })();
@@ -367,7 +367,7 @@ describe('WritableAsyncIterableStream', () => {
 
     afterEach(async () => {
       cancelAllPendingWaits();
-      stream.end();
+      stream.close();
     });
 
     it('should receive packets asynchronously', async () => {
@@ -376,7 +376,7 @@ describe('WritableAsyncIterableStream', () => {
           await wait(10);
           stream.write('hello' + i);
         }
-        stream.end();
+        stream.close();
       })();
 
       let receivedPackets = [];
@@ -401,7 +401,7 @@ describe('WritableAsyncIterableStream', () => {
           stream.write('b' + i);
           stream.write('c' + i);
         }
-        stream.end();
+        stream.close();
       })();
 
       let receivedPackets = [];

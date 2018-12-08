@@ -25,15 +25,13 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
     this._write(value, false);
   }
 
-  end() {
+  close() {
     this._write(undefined, true);
   }
 
   async _waitForNextDataNode() {
     return new Promise((resolve) => {
-      this._consumers.push(() => {
-        resolve();
-      });
+      this._consumers.push(resolve);
     });
   }
 
