@@ -379,6 +379,33 @@ describe('WritableAsyncIterableStream', () => {
       assert.equal(receivedPackets.length, 10);
       assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
     });
+
+    it('should be able to close stream with custom data', async () => {
+      (async () => {
+        for (let i = 0; i < 5; i++) {
+          await wait(10);
+          stream.write('hello' + i);
+        }
+        stream.close('done123');
+      })();
+
+      let receivedPackets = [];
+      let receivedEndPacket = null;
+      let iterator = stream.createAsyncIterator();
+
+      while (true) {
+        let packet = await iterator.next();
+        if (packet.done) {
+          receivedEndPacket = packet.value;
+          break;
+        }
+        receivedPackets.push(packet.value);
+      }
+
+      assert.equal(receivedPackets.length, 5);
+      assert.equal(receivedEndPacket, 'done123');
+      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+    });
   });
 
   describe('await once', () => {

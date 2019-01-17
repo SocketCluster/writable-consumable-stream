@@ -29,8 +29,8 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
     this._write(value, false);
   }
 
-  close() {
-    this._write(undefined, true);
+  close(value) {
+    this._write(value, true);
   }
 
   async _waitForNextDataNode(timeout) {
