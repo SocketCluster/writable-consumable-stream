@@ -347,6 +347,38 @@ describe('WritableAsyncIterableStream', () => {
 
       assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
     });
+
+    it('should be able to resume consumption immediately after stream is closed unless a condition is met', async () => {
+      let resume = true;
+      (async () => {
+        for (let i = 0; i < 5; i++) {
+          await wait(10);
+          stream.write('hello' + i);
+        }
+        // Consumer should be able to resume without missing any messages.
+        stream.close();
+        stream.write('world0');
+        for (let i = 1; i < 5; i++) {
+          await wait(10);
+          stream.write('world' + i);
+        }
+        resume = false;
+        stream.close();
+      })();
+
+      let receivedPackets = [];
+      let iterable = stream.createAsyncIterable();
+
+      while (true) {
+        for await (let data of iterable) {
+          receivedPackets.push(data);
+        }
+        if (!resume) break;
+      }
+
+      assert.equal(receivedPackets.length, 10);
+      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+    });
   });
 
   describe('await once', () => {
