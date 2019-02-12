@@ -184,6 +184,28 @@ describe('WritableAsyncIterableStream', () => {
       assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
     });
 
+    it('should be able to read maxBackpressure from a stream', async () => {
+      await Promise.all([
+        (async () => {
+          for (let i = 0; i < 10; i++) {
+            await wait(10);
+            stream.write('a' + i);
+            console.log('TODO 2333 maxBackpressure', stream.getBackpressureList());
+            // assert.equal(stream.maxBackpressure, i + 1);
+          }
+          stream.close();
+        })(),
+        (async () => {
+          for await (let packet of stream) {
+            await wait(120);
+            console.log('TODO 2444 maxBackpressure', stream.getBackpressureList());
+          }
+        })()
+      ]);
+
+      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+    });
+
     it('should be able to resume consumption after the stream has been closed', async () => {
       (async () => {
         for (let i = 0; i < 10; i++) {

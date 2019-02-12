@@ -3,26 +3,49 @@ const AsyncIterableStream = require('async-iterable-stream');
 class WritableAsyncIterableStream extends AsyncIterableStream {
   constructor() {
     super();
+    this._currentPacketId = 1;
     this._nextConsumerId = 1;
+    this.maxBackpressure = 0;
     this._consumers = {};
-    this._linkedListTailNode = {next: null};
+    this._linkedListTailNode = {
+      next: null,
+      data: {
+        value: undefined,
+        done: false
+      },
+      packetId: this._currentPacketId
+    };
   }
 
   _write(value, done) {
+    this._currentPacketId++;
     let dataNode = {
       data: {value, done},
-      next: null
+      next: null,
+      packedId: this._currentPacketId
     };
     this._linkedListTailNode.next = dataNode;
     this._linkedListTailNode = dataNode;
-    Object.values(this._consumers).forEach((consumer) => {
+    this.maxBackpressure = 0;
+
+    let consumerList = Object.values(this._consumers);
+    let len = consumerList.length;
+
+    for (let i = 0; i < len; i++) {
+      let consumer = consumerList[i];
       if (consumer.timeoutId !== undefined) {
         clearTimeout(consumer.timeoutId);
+        delete consumer.timeoutId;
       }
-      consumer.resolve();
-    });
-    this._consumers = {};
-    this._nextConsumerId = 1;
+      consumer.backpressure = this._currentPacketId - consumer.packetId;
+      if (consumer.backpressure > this.maxBackpressure) {
+        this.maxBackpressure = consumer.backpressure;
+      }
+      if (!consumer.isResolved) {
+        consumer.isResolved = true;
+        consumer.resolve();
+      }
+    }
   }
 
   write(value) {
@@ -33,10 +56,31 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
     this._write(value, true);
   }
 
-  async _waitForNextDataNode(timeout) {
+  getBackpressure(consumerId) {
+    let consumer = this._consumers[consumerId];
+    if (consumer) {
+      return consumer.backpressure;
+    }
+    return null;
+  }
+
+  getBackpressureList() {
+    let backpressureList = [];
+    let consumerList = Object.values(this._consumers);
+    let len = consumerList.length;
+    for (let i = 0; i < len; i++) {
+      let consumer = consumerList[i];
+      backpressureList.push({
+        consumerId: consumer.id,
+        backpressure: this._consumers[consumer.id].backpressure
+      });
+    }
+    return backpressureList;
+  }
+
+  async _waitForNextDataNode(consumerId, timeout) {
     return new Promise((resolve, reject) => {
       let timeoutId;
-      let consumerId = this._nextConsumerId++;
       if (timeout !== undefined) {
         // Create the error object in the outer scope in order
         // to get the full stack trace.
@@ -51,21 +95,37 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
         })();
       }
       this._consumers[consumerId] = {
+        id: consumerId,
         resolve,
-        timeoutId
+        timeoutId,
+        packetId: this._currentPacketId
       };
     });
   }
 
   createAsyncIterator(timeout) {
+    let consumerId = this._nextConsumerId++;
     let currentNode = this._linkedListTailNode;
     return {
+      consumerId,
       next: async () => {
         if (!currentNode.next) {
-          await this._waitForNextDataNode(timeout);
+          await this._waitForNextDataNode(consumerId, timeout);
         }
         currentNode = currentNode.next;
+        let consumer = this._consumers[consumerId];
+        if (consumer) {
+          consumer.packetId = currentNode.packedId;
+          consumer.backpressure = this._currentPacketId - consumer.packetId;
+          if (currentNode.data.done) {
+            delete this._consumers[consumerId];
+          }
+        }
         return currentNode.data;
+      },
+      return: () => {
+        delete this._consumers[consumerId];
+        return {};
       }
     };
   }
