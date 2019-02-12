@@ -3,30 +3,24 @@ const AsyncIterableStream = require('async-iterable-stream');
 class WritableAsyncIterableStream extends AsyncIterableStream {
   constructor() {
     super();
-    this._currentPacketId = 1;
     this._nextConsumerId = 1;
-    this.maxBackpressure = 0;
     this._consumers = {};
     this._linkedListTailNode = {
       next: null,
       data: {
         value: undefined,
         done: false
-      },
-      packetId: this._currentPacketId
+      }
     };
   }
 
   _write(value, done) {
-    this._currentPacketId++;
     let dataNode = {
       data: {value, done},
-      next: null,
-      packedId: this._currentPacketId
+      next: null
     };
     this._linkedListTailNode.next = dataNode;
     this._linkedListTailNode = dataNode;
-    this.maxBackpressure = 0;
 
     let consumerList = Object.values(this._consumers);
     let len = consumerList.length;
@@ -37,13 +31,11 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
         clearTimeout(consumer.timeoutId);
         delete consumer.timeoutId;
       }
-      consumer.backpressure = this._currentPacketId - consumer.packetId;
-      if (consumer.backpressure > this.maxBackpressure) {
-        this.maxBackpressure = consumer.backpressure;
-      }
-      if (!consumer.isResolved) {
-        consumer.isResolved = true;
+      consumer.backpressure++;
+
+      if (consumer.resolve) {
         consumer.resolve();
+        delete consumer.resolve;
       }
     }
   }
@@ -61,7 +53,7 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
     if (consumer) {
       return consumer.backpressure;
     }
-    return null;
+    return 0;
   }
 
   getBackpressureList() {
@@ -70,15 +62,17 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
     let len = consumerList.length;
     for (let i = 0; i < len; i++) {
       let consumer = consumerList[i];
-      backpressureList.push({
-        consumerId: consumer.id,
-        backpressure: this._consumers[consumer.id].backpressure
-      });
+      if (consumer.backpressure) {
+        backpressureList.push({
+          consumerId: consumer.id,
+          backpressure: consumer.backpressure
+        });
+      }
     }
     return backpressureList;
   }
 
-  async _waitForNextDataNode(consumerId, timeout) {
+  async _waitForNextDataNode(consumer, timeout) {
     return new Promise((resolve, reject) => {
       let timeoutId;
       if (timeout !== undefined) {
@@ -90,36 +84,39 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
           timeoutId = delay.timeoutId;
           await delay.promise;
           error.name = 'TimeoutError';
-          delete this._consumers[consumerId];
           reject(error);
         })();
       }
-      this._consumers[consumerId] = {
-        id: consumerId,
-        resolve,
-        timeoutId,
-        packetId: this._currentPacketId
-      };
+      consumer.resolve = resolve;
+      consumer.timeoutId = timeoutId;
     });
   }
 
   createAsyncIterator(timeout) {
     let consumerId = this._nextConsumerId++;
     let currentNode = this._linkedListTailNode;
+    let consumer = {
+      id: consumerId,
+      backpressure: 0
+    };
+    this._consumers[consumerId] = consumer;
+
     return {
       consumerId,
       next: async () => {
+        this._consumers[consumerId] = consumer;
         if (!currentNode.next) {
-          await this._waitForNextDataNode(consumerId, timeout);
-        }
-        currentNode = currentNode.next;
-        let consumer = this._consumers[consumerId];
-        if (consumer) {
-          consumer.packetId = currentNode.packedId;
-          consumer.backpressure = this._currentPacketId - consumer.packetId;
-          if (currentNode.data.done) {
+          try {
+            await this._waitForNextDataNode(consumer, timeout);
+          } catch (error) {
             delete this._consumers[consumerId];
+            throw error;
           }
+        }
+        consumer.backpressure--;
+        currentNode = currentNode.next;
+        if (currentNode.data.done) {
+          delete this._consumers[consumerId];
         }
         return currentNode.data;
       },
