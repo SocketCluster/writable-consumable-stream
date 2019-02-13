@@ -377,6 +377,7 @@ describe('WritableAsyncIterableStream', () => {
       }
 
       assert.equal(receivedPackets.length, 10);
+
       assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
     });
 
@@ -404,6 +405,230 @@ describe('WritableAsyncIterableStream', () => {
 
       assert.equal(receivedPackets.length, 5);
       assert.equal(receivedEndPacket, 'done123');
+
+      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+    });
+  });
+
+  describe('kill', () => {
+    beforeEach(async () => {
+      stream = new WritableAsyncIterableStream();
+    });
+
+    afterEach(async () => {
+      cancelAllPendingWaits();
+      stream.close();
+    });
+
+    it('should stop consumer immediately when stream is killed', async () => { // TODO 2: Check backpressure
+      (async () => {
+        await wait(10);
+        for (let i = 0; i < 10; i++) {
+          stream.write('hello' + i);
+        }
+        stream.kill();
+      })();
+
+      let receivedPackets = [];
+      for await (let packet of stream) {
+        await wait(50);
+        receivedPackets.push(packet);
+      }
+      assert.equal(receivedPackets.length, 0);
+
+      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+    });
+
+    it('should cancel timeout when stream is killed', async () => {
+      (async () => {
+        await wait(10);
+        for (let i = 0; i < 10; i++) {
+          stream.write('hello' + i);
+        }
+        stream.kill();
+      })();
+
+      await Promise.race([
+        stream.once(50), // This should not throw an error.
+        wait(100) // This one should execute first.
+      ]);
+
+      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+    });
+
+    it('should be able to restart a killed stream', async () => {
+      (async () => {
+        await wait(10);
+        for (let i = 0; i < 10; i++) {
+          stream.write('hello' + i);
+        }
+        await wait(10);
+        stream.kill();
+
+        await wait(70);
+
+        for (let i = 0; i < 10; i++) {
+          stream.write('world' + i);
+        }
+        await wait(10);
+        stream.close();
+      })();
+
+      let receivedPackets = [];
+      for await (let packet of stream) {
+        await wait(50);
+        receivedPackets.push(packet);
+      }
+      for await (let packet of stream) {
+        await wait(50);
+        receivedPackets.push(packet);
+      }
+
+      assert.equal(receivedPackets.length, 11);
+      assert.equal(receivedPackets[0], 'hello0');
+      assert.equal(receivedPackets[1], 'world0');
+      assert.equal(receivedPackets[10], 'world9');
+
+      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+    });
+
+    it('should be able to start writing to a killed stream immediately', async () => {
+      (async () => {
+        await wait(10);
+        stream.kill();
+        for (let i = 0; i < 10; i++) {
+          stream.write('hello' + i);
+        }
+        stream.close();
+      })();
+
+      let iterator = stream.createAsyncIterator();
+
+      let receivedPackets = [];
+      while (true) {
+        let packet = await iterator.next();
+        if (packet.done) break;
+        receivedPackets.push(packet);
+      }
+      while (true) {
+        let packet = await iterator.next();
+        if (packet.done) break;
+        receivedPackets.push(packet);
+      }
+      assert.equal(receivedPackets.length, 10);
+
+      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+    });
+
+    it('should be able to start reading from a killed stream immediately', async () => {
+      (async () => {
+        await wait(10);
+        for (let i = 0; i < 10; i++) {
+          stream.write('hello' + i);
+        }
+        stream.close();
+      })();
+
+      let iterator = stream.createAsyncIterator();
+      stream.kill();
+
+      let receivedPackets = [];
+      while (true) {
+        let packet = await iterator.next();
+        if (packet.done) break;
+        receivedPackets.push(packet);
+      }
+      while (true) {
+        let packet = await iterator.next();
+        if (packet.done) break;
+        receivedPackets.push(packet);
+      }
+      assert.equal(receivedPackets.length, 10);
+
+      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+    });
+
+    it('should pass kill data to consumer when stream is killed if using iterator', async () => {
+      (async () => {
+        await wait(10);
+        for (let i = 0; i < 10; i++) {
+          stream.write('hello' + i);
+        }
+        stream.kill(12345);
+      })();
+
+      let iterator = stream.createAsyncIterator();
+      let receivedPackets = [];
+      while (true) {
+        let packet = await iterator.next();
+        await wait(50);
+        receivedPackets.push(packet);
+        if (packet.done) {
+          break;
+        }
+      }
+      assert.equal(receivedPackets.length, 1);
+      assert.equal(receivedPackets[0].value, 12345);
+
+      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+    });
+
+    it('should stop consumer at the end of the current iteration when stream is killed and iteration has already started', async () => {
+      (async () => {
+        await wait(10);
+        for (let i = 0; i < 10; i++) {
+          stream.write('hello' + i);
+        }
+        await wait(10);
+        stream.kill();
+      })();
+      let receivedPackets = [];
+      for await (let packet of stream) {
+        await wait(50);
+        receivedPackets.push(packet);
+      }
+      assert.equal(receivedPackets.length, 1);
+
+      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+    });
+
+    it('should kill all consumers', async () => {
+      let isWriting = true;
+
+      (async () => {
+        for (let i = 0; i < 10; i++) {
+          await wait(20);
+          if (!isWriting) return;
+          stream.write('a' + i);
+        }
+      })();
+
+      (async () => {
+        await wait(110);
+        stream.kill();
+        isWriting = false;
+      })();
+
+      let receivedPacketsA = [];
+      let receivedPacketsB = [];
+
+      await Promise.all([
+        (async () => {
+          for await (let packet of stream) {
+            receivedPacketsA.push(packet);
+          }
+        })(),
+        (async () => {
+          for await (let packet of stream) {
+            receivedPacketsB.push(packet);
+            await wait(150);
+          }
+        })()
+      ]);
+
+      assert.equal(receivedPacketsA.length, 5);
+      assert.equal(receivedPacketsB.length, 1);
+
       assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
     });
   });

@@ -48,6 +48,24 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
     this._write(value, true);
   }
 
+  kill(value) {
+    let consumerList = Object.values(this._consumers);
+    let len = consumerList.length;
+    for (let i = 0; i < len; i++) {
+      let consumer = consumerList[i];
+      if (consumer.timeoutId !== undefined) {
+        clearTimeout(consumer.timeoutId);
+        delete consumer.timeoutId;
+      }
+      consumer.backpressure++;
+      consumer.kill = {value, done: true};
+      if (consumer.resolve) {
+        consumer.resolve();
+        delete consumer.resolve;
+      }
+    }
+  }
+
   getMaxBackpressure() {
     let consumerList = Object.values(this._consumers);
     let len = consumerList.length;
@@ -100,6 +118,7 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
           timeoutId = delay.timeoutId;
           await delay.promise;
           error.name = 'TimeoutError';
+          delete consumer.resolve;
           reject(error);
         })();
       }
@@ -120,7 +139,7 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
     return {
       consumerId,
       next: async () => {
-        this._consumers[consumerId] = consumer;
+        this._consumers[consumerId] = consumer; // TODO 2: Rename consumer to iterator?
         if (!currentNode.next) {
           try {
             await this._waitForNextDataNode(consumer, timeout);
@@ -128,6 +147,13 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
             delete this._consumers[consumerId];
             throw error;
           }
+        }
+        if (consumer.kill) {
+          consumer.backpressure = 0;
+          delete this._consumers[consumerId];
+          let killPacket = consumer.kill;
+          delete consumer.kill;
+          return killPacket;
         }
         consumer.backpressure--;
         currentNode = currentNode.next;
