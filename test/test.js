@@ -421,30 +421,36 @@ describe('WritableAsyncIterableStream', () => {
     it('should track backpressure correctly when consuming stream', async () => {
       await Promise.all([
         (async () => {
-          let backpressureList = stream.getBackpressureList();
-          assert.equal(backpressureList.length, 0);
+          let consumerStats = stream.getConsumerStats();
+          assert.equal(consumerStats.length, 0);
 
           await wait(10);
 
-          backpressureList = stream.getBackpressureList();
-          assert.equal(backpressureList.length, 0);
+          consumerStats = stream.getConsumerStats();
+          assert.equal(consumerStats.length, 1);
+          assert.equal(consumerStats[0].backpressure, 0);
+          assert.equal(consumerStats[0].id, 1);
+
+          assert.equal(stream.hasConsumer(1), true);
+          assert.equal(stream.hasConsumer(2), false);
 
           stream.write('a0');
 
-          backpressureList = stream.getBackpressureList();
-          assert.equal(backpressureList.length, 1);
-          assert.equal(backpressureList[0].backpressure, 1);
+          consumerStats = stream.getConsumerStats();
+          assert.equal(consumerStats.length, 1);
+          assert.equal(consumerStats[0].backpressure, 1);
 
           await wait(10);
 
-          backpressureList = stream.getBackpressureList();
-          assert.equal(backpressureList.length, 0);
+          consumerStats = stream.getConsumerStats();
+          assert.equal(consumerStats.length, 1);
+          assert.equal(consumerStats[0].backpressure, 0);
 
           stream.write('a1');
 
-          backpressureList = stream.getBackpressureList();
-          assert.equal(backpressureList.length, 1);
-          assert.equal(backpressureList[0].backpressure, 1);
+          consumerStats = stream.getConsumerStats();
+          assert.equal(consumerStats.length, 1);
+          assert.equal(consumerStats[0].backpressure, 1);
 
           await wait(10);
           stream.write('a2');
@@ -453,27 +459,27 @@ describe('WritableAsyncIterableStream', () => {
           await wait(10);
           stream.write('a4');
 
-          backpressureList = stream.getBackpressureList();
-          assert.equal(backpressureList.length, 1);
-          assert.equal(backpressureList[0].backpressure, 4);
+          consumerStats = stream.getConsumerStats();
+          assert.equal(consumerStats.length, 1);
+          assert.equal(consumerStats[0].backpressure, 4);
 
           stream.close();
 
-          backpressureList = stream.getBackpressureList();
-          assert.equal(backpressureList.length, 1);
-          assert.equal(backpressureList[0].backpressure, 5);
+          consumerStats = stream.getConsumerStats();
+          assert.equal(consumerStats.length, 1);
+          assert.equal(consumerStats[0].backpressure, 5);
         })(),
         (async () => {
           let expectedPressure = 6;
           for await (let data of stream) {
             expectedPressure--;
             await wait(70);
-            let backpressureList = stream.getBackpressureList();
-            assert.equal(backpressureList.length, 1);
-            assert.equal(backpressureList[0].backpressure, expectedPressure);
+            let consumerStats = stream.getConsumerStats();
+            assert.equal(consumerStats.length, 1);
+            assert.equal(consumerStats[0].backpressure, expectedPressure);
           }
-          let backpressureList = stream.getBackpressureList();
-          assert.equal(backpressureList.length, 0);
+          let consumerStats = stream.getConsumerStats();
+          assert.equal(consumerStats.length, 0);
         })()
       ]);
 
@@ -486,28 +492,30 @@ describe('WritableAsyncIterableStream', () => {
           for (let i = 0; i < 10; i++) {
             await wait(10);
             stream.write('a' + i);
-            let backpressureList = stream.getBackpressureList();
-            assert.equal(backpressureList.length, 1);
-            assert.equal(backpressureList[0].backpressure, i + 1);
+            let consumerStats = stream.getConsumerStats();
+            assert.equal(consumerStats.length, 1);
+            assert.equal(consumerStats[0].backpressure, i + 1);
           }
           stream.close();
         })(),
         (async () => {
           let iter = stream.createAsyncIterator();
+          assert.equal(iter.consumerId, 1);
+
           await wait(20);
           let expectedPressure = 11;
           while (true) {
             expectedPressure--;
             await wait(120);
             let data = await iter.next();
-            let backpressureList = stream.getBackpressureList();
+            let consumerStats = stream.getConsumerStats();
 
             if (data.done) {
-              assert.equal(backpressureList.length, 0);
+              assert.equal(consumerStats.length, 0);
               break;
             }
-            assert.equal(backpressureList.length, 1);
-            assert.equal(backpressureList[0].backpressure, expectedPressure);
+            assert.equal(consumerStats.length, 1);
+            assert.equal(consumerStats[0].backpressure, expectedPressure);
           }
         })()
       ]);
@@ -517,20 +525,23 @@ describe('WritableAsyncIterableStream', () => {
 
     it('should track backpressure correctly when writing to and consuming stream intermittently with multiple iterators', async () => {
       let iterA = stream.createAsyncIterator();
+      assert.equal(iterA.consumerId, 1);
 
-      let backpressureList = stream.getBackpressureList();
-      assert.equal(backpressureList.length, 0);
+      let consumerStats = stream.getConsumerStats();
+      assert.equal(consumerStats.length, 1);
+      assert.equal(consumerStats[0].backpressure, 0);
 
       await wait(10);
 
-      backpressureList = stream.getBackpressureList();
-      assert.equal(backpressureList.length, 0);
+      consumerStats = stream.getConsumerStats();
+      assert.equal(consumerStats.length, 1);
+      assert.equal(consumerStats[0].backpressure, 0);
 
       stream.write('a0');
 
-      backpressureList = stream.getBackpressureList();
-      assert.equal(backpressureList.length, 1);
-      assert.equal(backpressureList[0].backpressure, 1);
+      consumerStats = stream.getConsumerStats();
+      assert.equal(consumerStats.length, 1);
+      assert.equal(consumerStats[0].backpressure, 1);
 
       stream.write('a1');
       await wait(10);
@@ -538,45 +549,50 @@ describe('WritableAsyncIterableStream', () => {
       await wait(10);
 
       let iterB = stream.createAsyncIterator();
+      assert.equal(iterB.consumerId, 2);
 
       stream.write('a3');
       await wait(10);
       stream.write('a4');
 
-      backpressureList = stream.getBackpressureList();
-      assert.equal(backpressureList.length, 2);
-      assert.equal(backpressureList[0].backpressure, 5);
+      consumerStats = stream.getConsumerStats();
+      assert.equal(consumerStats.length, 2);
+      assert.equal(consumerStats[0].backpressure, 5);
+
+      assert.equal(stream.getMaxBackpressure(), 5);
 
       assert.equal(stream.getBackpressure(1), 5);
       assert.equal(stream.getBackpressure(2), 2);
 
       await iterA.next();
 
-      backpressureList = stream.getBackpressureList();
-      assert.equal(backpressureList.length, 2);
-      assert.equal(backpressureList[0].backpressure, 4);
+      consumerStats = stream.getConsumerStats();
+      assert.equal(consumerStats.length, 2);
+      assert.equal(consumerStats[0].backpressure, 4);
 
       await iterA.next();
       await iterA.next();
 
-      backpressureList = stream.getBackpressureList();
-      assert.equal(backpressureList.length, 2);
-      assert.equal(backpressureList[0].backpressure, 2);
+      consumerStats = stream.getConsumerStats();
+      assert.equal(consumerStats.length, 2);
+      assert.equal(consumerStats[0].backpressure, 2);
 
       stream.write('a5');
       stream.write('a6');
       stream.write('a7');
 
-      backpressureList = stream.getBackpressureList();
-      assert.equal(backpressureList.length, 2);
-      assert.equal(backpressureList[0].backpressure, 5);
+      consumerStats = stream.getConsumerStats();
+      assert.equal(consumerStats.length, 2);
+      assert.equal(consumerStats[0].backpressure, 5);
       assert.equal(stream.getBackpressure(2), 5);
 
       stream.close();
 
-      backpressureList = stream.getBackpressureList();
-      assert.equal(backpressureList.length, 2);
-      assert.equal(backpressureList[0].backpressure, 6);
+      consumerStats = stream.getConsumerStats();
+      assert.equal(consumerStats.length, 2);
+      assert.equal(consumerStats[0].backpressure, 6);
+
+      assert.equal(stream.getMaxBackpressure(), 6);
 
       await iterA.next();
       await iterA.next();
@@ -587,9 +603,9 @@ describe('WritableAsyncIterableStream', () => {
 
       assert.equal(stream.getBackpressure(2), 6);
 
-      backpressureList = stream.getBackpressureList();
-      assert.equal(backpressureList.length, 2);
-      assert.equal(backpressureList[0].backpressure, 1);
+      consumerStats = stream.getConsumerStats();
+      assert.equal(consumerStats.length, 2);
+      assert.equal(consumerStats[0].backpressure, 1);
 
       await iterB.next();
       await iterB.next();
@@ -603,16 +619,20 @@ describe('WritableAsyncIterableStream', () => {
 
       assert.equal(stream.getBackpressure(2), 0);
 
-      backpressureList = stream.getBackpressureList();
-      assert.equal(backpressureList.length, 1);
-      assert.equal(backpressureList[0].backpressure, 1);
+      consumerStats = stream.getConsumerStats();
+      assert.equal(consumerStats.length, 1);
+      assert.equal(consumerStats[0].backpressure, 1);
+
+      assert.equal(stream.getMaxBackpressure(), 1);
 
       let iterAData = await iterA.next();
 
-      backpressureList = stream.getBackpressureList();
-      assert.equal(backpressureList.length, 0);
+      consumerStats = stream.getConsumerStats();
+      assert.equal(consumerStats.length, 0);
       assert.equal(iterAData.done, true);
       assert.equal(iterBData.done, true);
+
+      assert.equal(stream.getMaxBackpressure(), 0);
 
       assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
     });

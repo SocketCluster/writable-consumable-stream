@@ -48,6 +48,20 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
     this._write(value, true);
   }
 
+  getMaxBackpressure() {
+    let consumerList = Object.values(this._consumers);
+    let len = consumerList.length;
+
+    let maxBackpressure = 0;
+    for (let i = 0; i < len; i++) {
+      let consumer = consumerList[i];
+      if (consumer.backpressure > maxBackpressure) {
+        maxBackpressure = consumer.backpressure;
+      }
+    }
+    return maxBackpressure;
+  }
+
   getBackpressure(consumerId) {
     let consumer = this._consumers[consumerId];
     if (consumer) {
@@ -56,20 +70,22 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
     return 0;
   }
 
-  getBackpressureList() {
-    let backpressureList = [];
+  hasConsumer(consumerId) {
+    return !!this._consumers[consumerId];
+  }
+
+  getConsumerStats() {
+    let consumerStats = [];
     let consumerList = Object.values(this._consumers);
     let len = consumerList.length;
     for (let i = 0; i < len; i++) {
       let consumer = consumerList[i];
-      if (consumer.backpressure) {
-        backpressureList.push({
-          consumerId: consumer.id,
-          backpressure: consumer.backpressure
-        });
-      }
+      consumerStats.push({
+        id: consumer.id,
+        backpressure: consumer.backpressure
+      });
     }
-    return backpressureList;
+    return consumerStats;
   }
 
   async _waitForNextDataNode(consumer, timeout) {
