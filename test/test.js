@@ -420,13 +420,17 @@ describe('WritableAsyncIterableStream', () => {
       stream.close();
     });
 
-    it('should stop consumer immediately when stream is killed', async () => { // TODO 2: Check backpressure
+    it('should stop consumer immediately when stream is killed', async () => {
+      let backpressureBeforeKill;
+      let backpressureAfterKill;
       (async () => {
         await wait(10);
         for (let i = 0; i < 10; i++) {
           stream.write('hello' + i);
         }
+        backpressureBeforeKill = stream.getMaxBackpressure();
         stream.kill();
+        backpressureAfterKill = stream.getMaxBackpressure();
       })();
 
       let receivedPackets = [];
@@ -434,6 +438,12 @@ describe('WritableAsyncIterableStream', () => {
         await wait(50);
         receivedPackets.push(packet);
       }
+
+      let backpressureAfterConsume = stream.getMaxBackpressure();
+
+      assert.equal(backpressureBeforeKill, 10);
+      assert.equal(backpressureAfterKill, 11);
+      assert.equal(backpressureAfterConsume, 0);
       assert.equal(receivedPackets.length, 0);
 
       assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
@@ -452,6 +462,9 @@ describe('WritableAsyncIterableStream', () => {
         stream.once(50), // This should not throw an error.
         wait(100) // This one should execute first.
       ]);
+
+      let backpressure = stream.getMaxBackpressure();
+      assert.equal(backpressure, 0);
 
       assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
     });
@@ -479,10 +492,14 @@ describe('WritableAsyncIterableStream', () => {
         await wait(50);
         receivedPackets.push(packet);
       }
+
       for await (let packet of stream) {
         await wait(50);
         receivedPackets.push(packet);
       }
+
+      let backpressure = stream.getMaxBackpressure();
+      assert.equal(backpressure, 0);
 
       assert.equal(receivedPackets.length, 11);
       assert.equal(receivedPackets[0], 'hello0');

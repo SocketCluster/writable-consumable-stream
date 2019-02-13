@@ -139,7 +139,7 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
     return {
       consumerId,
       next: async () => {
-        this._consumers[consumerId] = consumer; // TODO 2: Rename consumer to iterator?
+        this._consumers[consumerId] = consumer;
         if (!currentNode.next) {
           try {
             await this._waitForNextDataNode(consumer, timeout);
