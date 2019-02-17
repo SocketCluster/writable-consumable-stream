@@ -1208,8 +1208,10 @@ describe('WritableAsyncIterableStream', () => {
     });
 
     it('should stop a specific consumer when that consumer is closed', async () => {
-      let backpressureBeforeKill;
-      let backpressureAfterKill;
+      let maxBackpressureBeforeClose;
+      let maxBackpressureAfterClose;
+      let backpressureBeforeCloseA;
+      let backpressureBeforeCloseB;
 
       let iteratorA = stream.createAsyncIterator();
       let iteratorB = stream.createAsyncIterator();
@@ -1219,10 +1221,12 @@ describe('WritableAsyncIterableStream', () => {
         for (let i = 0; i < 10; i++) {
           stream.write('hello' + i);
         }
-        backpressureBeforeKill = stream.getMaxBackpressure();
+        maxBackpressureBeforeClose = stream.getMaxBackpressure();
         stream.closeConsumer(iteratorA.consumerId, 'custom close data');
-        backpressureAfterKill = stream.getMaxBackpressure();
+        maxBackpressureAfterClose = stream.getMaxBackpressure();
         stream.write('foo');
+        backpressureBeforeCloseA = stream.getBackpressure(iteratorA.consumerId);
+        backpressureBeforeCloseB = stream.getBackpressure(iteratorB.consumerId);
         stream.close('close others');
       })();
 
@@ -1248,11 +1252,13 @@ describe('WritableAsyncIterableStream', () => {
         })()
       ]);
 
-      let backpressureAfterConsume = stream.getMaxBackpressure();
+      let maxBackpressureAfterConsume = stream.getMaxBackpressure();
 
-      assert.equal(backpressureBeforeKill, 10);
-      assert.equal(backpressureAfterKill, 11);
-      assert.equal(backpressureAfterConsume, 0);
+      assert.equal(backpressureBeforeCloseA, 12);
+      assert.equal(backpressureBeforeCloseB, 12);
+      assert.equal(maxBackpressureBeforeClose, 10);
+      assert.equal(maxBackpressureAfterClose, 11);
+      assert.equal(maxBackpressureAfterConsume, 0);
       assert.equal(receivedPacketsA.length, 11);
       assert.equal(receivedPacketsA[0].value, 'hello0');
       assert.equal(receivedPacketsA[9].value, 'hello9');
@@ -1264,6 +1270,63 @@ describe('WritableAsyncIterableStream', () => {
       assert.equal(receivedPacketsB[10].value, 'foo');
       assert.equal(receivedPacketsB[11].done, true);
       assert.equal(receivedPacketsB[11].value, 'close others');
+
+      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+    });
+
+    it('should support closing only one of multiple consumers', async () => {
+      let backpressureBeforeClose;
+      let backpressureAfterClose;
+
+      let iteratorA = stream.createAsyncIterator();
+      let iteratorB = stream.createAsyncIterator();
+
+      (async () => {
+        await wait(10);
+        for (let i = 0; i < 10; i++) {
+          stream.write('hello' + i);
+        }
+        backpressureBeforeClose = stream.getMaxBackpressure();
+        stream.closeConsumer(iteratorA.consumerId, 'custom close data');
+        backpressureAfterClose = stream.getMaxBackpressure();
+      })();
+
+      let receivedPacketsA = [];
+      let receivedPacketsB = [];
+
+      await Promise.race([
+        (async () => {
+          while (true) {
+            let packet = await iteratorA.next();
+            await wait(50);
+            receivedPacketsA.push(packet);
+            if (packet.done) break;
+          }
+        })(),
+        (async () => {
+          while (true) {
+            let packet = await iteratorB.next();
+            await wait(50);
+            receivedPacketsB.push(packet);
+            if (packet.done) break;
+          }
+        })()
+      ]);
+
+      let backpressureAfterConsume = stream.getMaxBackpressure();
+
+      assert.equal(backpressureBeforeClose, 10);
+      assert.equal(backpressureAfterClose, 11);
+      assert.equal(backpressureAfterConsume, 0);
+      assert.equal(receivedPacketsA.length, 11);
+      assert.equal(receivedPacketsA[10].done, true);
+      assert.equal(receivedPacketsA[10].value, 'custom close data');
+      assert.equal(receivedPacketsB.length, 10);
+      assert.equal(receivedPacketsB[0].value, 'hello0');
+      assert.equal(receivedPacketsB[9].value, 'hello9');
+
+      stream.close(iteratorB.consumerId);
+      await wait(10);
 
       assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
     });

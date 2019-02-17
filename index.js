@@ -161,31 +161,36 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
     return {
       consumerId,
       next: async () => {
-        this._consumers[consumerId] = consumer;
-        if (!currentNode.next) {
-          try {
-            await this._waitForNextDataNode(consumer, timeout);
-          } catch (error) {
-            delete this._consumers[consumerId];
-            throw error;
+        while (true) {
+          this._consumers[consumerId] = consumer;
+          if (!currentNode.next) {
+            try {
+              await this._waitForNextDataNode(consumer, timeout);
+            } catch (error) {
+              delete this._consumers[consumerId];
+              throw error;
+            }
           }
-        }
-        if (consumer.kill) {
-          consumer.backpressure = 0;
-          delete this._consumers[consumerId];
-          let killPacket = consumer.kill;
-          delete consumer.kill;
-          return killPacket;
-        }
-        consumer.backpressure--;
-        do {
-          currentNode = currentNode.next;
-        } while (currentNode.consumerId && currentNode.consumerId !== consumerId);
+          if (consumer.kill) {
+            consumer.backpressure = 0;
+            delete this._consumers[consumerId];
+            let killPacket = consumer.kill;
+            delete consumer.kill;
+            return killPacket;
+          }
 
-        if (currentNode.data.done) {
-          delete this._consumers[consumerId];
+          consumer.backpressure--;
+          currentNode = currentNode.next;
+
+          if (currentNode.consumerId && currentNode.consumerId !== consumerId) {
+            continue;
+          }
+
+          if (currentNode.data.done) {
+            delete this._consumers[consumerId];
+          }
+          return currentNode.data;
         }
-        return currentNode.data;
       },
       return: () => {
         delete this._consumers[consumerId];
