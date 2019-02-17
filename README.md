@@ -39,7 +39,7 @@ let iterableStream = new WritableAsyncIterableStream();
 async function consumeAsyncIterable(asyncIterable) {
   // Consume iterable data asynchronously.
   // Works in older environments.
-  let asyncIterator = stream.createAsyncIterator();
+  let asyncIterator = stream.createConsumer();
   while (true) {
     let packet = await asyncIterator.next();
     if (packet.done) break;

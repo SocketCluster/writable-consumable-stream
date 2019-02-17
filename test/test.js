@@ -268,7 +268,7 @@ describe('WritableAsyncIterableStream', () => {
       })();
 
       let receivedPackets = [];
-      let asyncIterable = stream.createAsyncIterable(20);
+      let asyncIterable = stream.createConsumable(20);
       let error;
       try {
         for await (let packet of asyncIterable) {
@@ -299,7 +299,7 @@ describe('WritableAsyncIterableStream', () => {
       })();
 
       let receivedPackets = [];
-      let asyncIterable = stream.createAsyncIterable(20);
+      let asyncIterable = stream.createConsumable(20);
       let error;
       try {
         for await (let packet of asyncIterable) {
@@ -329,7 +329,7 @@ describe('WritableAsyncIterableStream', () => {
       })();
 
       let receivedPackets = [];
-      let asyncIterable = stream.createAsyncIterable(20);
+      let asyncIterable = stream.createConsumable(20);
       let error;
       try {
         for await (let packet of asyncIterable) {
@@ -367,7 +367,7 @@ describe('WritableAsyncIterableStream', () => {
       })();
 
       let receivedPackets = [];
-      let iterable = stream.createAsyncIterable();
+      let iterable = stream.createConsumable();
 
       while (true) {
         for await (let data of iterable) {
@@ -392,10 +392,10 @@ describe('WritableAsyncIterableStream', () => {
 
       let receivedPackets = [];
       let receivedEndPacket = null;
-      let iterator = stream.createAsyncIterator();
+      let consumer = stream.createConsumer();
 
       while (true) {
-        let packet = await iterator.next();
+        let packet = await consumer.next();
         if (packet.done) {
           receivedEndPacket = packet.value;
           break;
@@ -428,9 +428,9 @@ describe('WritableAsyncIterableStream', () => {
         for (let i = 0; i < 10; i++) {
           stream.write('hello' + i);
         }
-        backpressureBeforeKill = stream.getMaxBackpressure();
+        backpressureBeforeKill = stream.getBackpressure();
         stream.kill();
-        backpressureAfterKill = stream.getMaxBackpressure();
+        backpressureAfterKill = stream.getBackpressure();
       })();
 
       let receivedPackets = [];
@@ -439,7 +439,7 @@ describe('WritableAsyncIterableStream', () => {
         receivedPackets.push(packet);
       }
 
-      let backpressureAfterConsume = stream.getMaxBackpressure();
+      let backpressureAfterConsume = stream.getBackpressure();
 
       assert.equal(backpressureBeforeKill, 10);
       assert.equal(backpressureAfterKill, 11);
@@ -463,7 +463,7 @@ describe('WritableAsyncIterableStream', () => {
         wait(100) // This one should execute first.
       ]);
 
-      let backpressure = stream.getMaxBackpressure();
+      let backpressure = stream.getBackpressure();
       assert.equal(backpressure, 0);
 
       assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
@@ -498,7 +498,7 @@ describe('WritableAsyncIterableStream', () => {
         receivedPackets.push(packet);
       }
 
-      let backpressure = stream.getMaxBackpressure();
+      let backpressure = stream.getBackpressure();
       assert.equal(backpressure, 0);
 
       assert.equal(receivedPackets.length, 11);
@@ -519,16 +519,16 @@ describe('WritableAsyncIterableStream', () => {
         stream.close();
       })();
 
-      let iterator = stream.createAsyncIterator();
+      let consumer = stream.createConsumer();
 
       let receivedPackets = [];
       while (true) {
-        let packet = await iterator.next();
+        let packet = await consumer.next();
         if (packet.done) break;
         receivedPackets.push(packet);
       }
       while (true) {
-        let packet = await iterator.next();
+        let packet = await consumer.next();
         if (packet.done) break;
         receivedPackets.push(packet);
       }
@@ -546,17 +546,17 @@ describe('WritableAsyncIterableStream', () => {
         stream.close();
       })();
 
-      let iterator = stream.createAsyncIterator();
+      let consumer = stream.createConsumer();
       stream.kill();
 
       let receivedPackets = [];
       while (true) {
-        let packet = await iterator.next();
+        let packet = await consumer.next();
         if (packet.done) break;
         receivedPackets.push(packet);
       }
       while (true) {
-        let packet = await iterator.next();
+        let packet = await consumer.next();
         if (packet.done) break;
         receivedPackets.push(packet);
       }
@@ -565,7 +565,7 @@ describe('WritableAsyncIterableStream', () => {
       assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
     });
 
-    it('should pass kill data to consumer when stream is killed if using iterator', async () => {
+    it('should pass kill data to consumer when stream is killed if using consumer', async () => {
       (async () => {
         await wait(10);
         for (let i = 0; i < 10; i++) {
@@ -574,10 +574,10 @@ describe('WritableAsyncIterableStream', () => {
         stream.kill(12345);
       })();
 
-      let iterator = stream.createAsyncIterator();
+      let consumer = stream.createConsumer();
       let receivedPackets = [];
       while (true) {
-        let packet = await iterator.next();
+        let packet = await consumer.next();
         await wait(50);
         receivedPackets.push(packet);
         if (packet.done) {
@@ -728,7 +728,7 @@ describe('WritableAsyncIterableStream', () => {
       assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
     });
 
-    it('should track backpressure correctly when consuming stream with an iterator', async () => {
+    it('should track backpressure correctly when consuming stream with a consumer', async () => {
       await Promise.all([
         (async () => {
           for (let i = 0; i < 10; i++) {
@@ -741,8 +741,8 @@ describe('WritableAsyncIterableStream', () => {
           stream.close();
         })(),
         (async () => {
-          let iter = stream.createAsyncIterator();
-          assert.equal(iter.consumerId, 1);
+          let iter = stream.createConsumer();
+          assert.equal(iter.id, 1);
 
           await wait(20);
           let expectedPressure = 11;
@@ -765,9 +765,9 @@ describe('WritableAsyncIterableStream', () => {
       assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
     });
 
-    it('should track backpressure correctly when writing to and consuming stream intermittently with multiple iterators', async () => {
-      let iterA = stream.createAsyncIterator();
-      assert.equal(iterA.consumerId, 1);
+    it('should track backpressure correctly when writing to and consuming stream intermittently with multiple consumers', async () => {
+      let iterA = stream.createConsumer();
+      assert.equal(iterA.id, 1);
 
       let consumerStats = stream.getConsumerStats();
       assert.equal(consumerStats.length, 1);
@@ -790,8 +790,8 @@ describe('WritableAsyncIterableStream', () => {
       stream.write('a2');
       await wait(10);
 
-      let iterB = stream.createAsyncIterator();
-      assert.equal(iterB.consumerId, 2);
+      let iterB = stream.createConsumer();
+      assert.equal(iterB.id, 2);
 
       stream.write('a3');
       await wait(10);
@@ -801,10 +801,12 @@ describe('WritableAsyncIterableStream', () => {
       assert.equal(consumerStats.length, 2);
       assert.equal(consumerStats[0].backpressure, 5);
 
-      assert.equal(stream.getMaxBackpressure(), 5);
+      assert.equal(stream.getBackpressure(), 5);
 
-      assert.equal(stream.getBackpressure(1), 5);
-      assert.equal(stream.getBackpressure(2), 2);
+      assert.equal(iterA.backpressure, 5);
+      assert.equal(stream.getConsumerBackpressure(1), 5);
+      assert.equal(iterB.backpressure, 2);
+      assert.equal(stream.getConsumerBackpressure(2), 2);
 
       await iterA.next();
 
@@ -826,7 +828,7 @@ describe('WritableAsyncIterableStream', () => {
       consumerStats = stream.getConsumerStats();
       assert.equal(consumerStats.length, 2);
       assert.equal(consumerStats[0].backpressure, 5);
-      assert.equal(stream.getBackpressure(2), 5);
+      assert.equal(stream.getConsumerBackpressure(2), 5);
 
       stream.close();
 
@@ -834,7 +836,7 @@ describe('WritableAsyncIterableStream', () => {
       assert.equal(consumerStats.length, 2);
       assert.equal(consumerStats[0].backpressure, 6);
 
-      assert.equal(stream.getMaxBackpressure(), 6);
+      assert.equal(stream.getBackpressure(), 6);
 
       await iterA.next();
       await iterA.next();
@@ -843,7 +845,7 @@ describe('WritableAsyncIterableStream', () => {
       await iterA.next();
       await iterA.next();
 
-      assert.equal(stream.getBackpressure(2), 6);
+      assert.equal(stream.getConsumerBackpressure(2), 6);
 
       consumerStats = stream.getConsumerStats();
       assert.equal(consumerStats.length, 2);
@@ -855,17 +857,17 @@ describe('WritableAsyncIterableStream', () => {
       await iterB.next();
       await iterB.next();
 
-      assert.equal(stream.getBackpressure(2), 1);
+      assert.equal(stream.getConsumerBackpressure(2), 1);
 
       let iterBData = await iterB.next();
 
-      assert.equal(stream.getBackpressure(2), 0);
+      assert.equal(stream.getConsumerBackpressure(2), 0);
 
       consumerStats = stream.getConsumerStats();
       assert.equal(consumerStats.length, 1);
       assert.equal(consumerStats[0].backpressure, 1);
 
-      assert.equal(stream.getMaxBackpressure(), 1);
+      assert.equal(stream.getBackpressure(), 1);
 
       let iterAData = await iterA.next();
 
@@ -874,7 +876,7 @@ describe('WritableAsyncIterableStream', () => {
       assert.equal(iterAData.done, true);
       assert.equal(iterBData.done, true);
 
-      assert.equal(stream.getMaxBackpressure(), 0);
+      assert.equal(stream.getBackpressure(), 0);
 
       assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
     });
@@ -1027,7 +1029,7 @@ describe('WritableAsyncIterableStream', () => {
       })();
 
       let receivedPackets = [];
-      let asyncIterator = stream.createAsyncIterator();
+      let asyncIterator = stream.createConsumer();
       while (true) {
         let packet = await asyncIterator.next();
         if (packet.done) break;
@@ -1050,7 +1052,7 @@ describe('WritableAsyncIterableStream', () => {
       })();
 
       let receivedPackets = [];
-      let asyncIterator = stream.createAsyncIterator();
+      let asyncIterator = stream.createConsumer();
       while (true) {
         let packet = await asyncIterator.next();
         if (packet.done) break;
@@ -1068,7 +1070,7 @@ describe('WritableAsyncIterableStream', () => {
       assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
     });
 
-    it('should be able to timeout the iterator if the stream is idle for too long', async () => {
+    it('should be able to timeout the consumer if the stream is idle for too long', async () => {
       (async () => {
         for (let i = 0; i < 10; i++) {
           await wait(30);
@@ -1078,7 +1080,7 @@ describe('WritableAsyncIterableStream', () => {
       })();
 
       let receivedPackets = [];
-      let asyncIterator = stream.createAsyncIterator(20);
+      let asyncIterator = stream.createConsumer(20);
       let error;
       try {
         while (true) {
@@ -1112,7 +1114,7 @@ describe('WritableAsyncIterableStream', () => {
       })();
 
       let receivedPackets = [];
-      let asyncIterator = stream.createAsyncIterator(30);
+      let asyncIterator = stream.createConsumer(30);
       let errors = [];
 
       while (true) {
@@ -1135,10 +1137,10 @@ describe('WritableAsyncIterableStream', () => {
     });
 
     it('should be able to get the next consumer id', async () => {
-      let nextConsumerId = stream.getNextConsumerId();
-      let asyncIterator = stream.createAsyncIterator();
+      let nextConsumerId = stream.nextConsumerId;
+      let asyncIterator = stream.createConsumer();
 
-      assert.equal(nextConsumerId, asyncIterator.consumerId);
+      assert.equal(nextConsumerId, asyncIterator.id);
     });
   });
 
@@ -1156,17 +1158,17 @@ describe('WritableAsyncIterableStream', () => {
       let backpressureBeforeKill;
       let backpressureAfterKill;
 
-      let iteratorA = stream.createAsyncIterator();
-      let iteratorB = stream.createAsyncIterator();
+      let consumerA = stream.createConsumer();
+      let consumerB = stream.createConsumer();
 
       (async () => {
         await wait(10);
         for (let i = 0; i < 10; i++) {
           stream.write('hello' + i);
         }
-        backpressureBeforeKill = stream.getMaxBackpressure();
-        stream.killConsumer(iteratorA.consumerId, 'custom kill data');
-        backpressureAfterKill = stream.getMaxBackpressure();
+        backpressureBeforeKill = stream.getBackpressure();
+        stream.killConsumer(consumerA.id, 'custom kill data');
+        backpressureAfterKill = stream.getBackpressure();
         stream.close();
       })();
 
@@ -1176,7 +1178,7 @@ describe('WritableAsyncIterableStream', () => {
       await Promise.all([
         (async () => {
           while (true) {
-            let packet = await iteratorA.next();
+            let packet = await consumerA.next();
             await wait(50);
             receivedPacketsA.push(packet);
             if (packet.done) break;
@@ -1184,7 +1186,7 @@ describe('WritableAsyncIterableStream', () => {
         })(),
         (async () => {
           while (true) {
-            let packet = await iteratorB.next();
+            let packet = await consumerB.next();
             await wait(50);
             receivedPacketsB.push(packet);
             if (packet.done) break;
@@ -1192,7 +1194,7 @@ describe('WritableAsyncIterableStream', () => {
         })()
       ]);
 
-      let backpressureAfterConsume = stream.getMaxBackpressure();
+      let backpressureAfterConsume = stream.getBackpressure();
 
       assert.equal(backpressureBeforeKill, 10);
       assert.equal(backpressureAfterKill, 11);
@@ -1213,20 +1215,20 @@ describe('WritableAsyncIterableStream', () => {
       let backpressureBeforeCloseA;
       let backpressureBeforeCloseB;
 
-      let iteratorA = stream.createAsyncIterator();
-      let iteratorB = stream.createAsyncIterator();
+      let consumerA = stream.createConsumer();
+      let consumerB = stream.createConsumer();
 
       (async () => {
         await wait(10);
         for (let i = 0; i < 10; i++) {
           stream.write('hello' + i);
         }
-        maxBackpressureBeforeClose = stream.getMaxBackpressure();
-        stream.closeConsumer(iteratorA.consumerId, 'custom close data');
-        maxBackpressureAfterClose = stream.getMaxBackpressure();
+        maxBackpressureBeforeClose = stream.getBackpressure();
+        stream.closeConsumer(consumerA.id, 'custom close data');
+        maxBackpressureAfterClose = stream.getBackpressure();
         stream.write('foo');
-        backpressureBeforeCloseA = stream.getBackpressure(iteratorA.consumerId);
-        backpressureBeforeCloseB = stream.getBackpressure(iteratorB.consumerId);
+        backpressureBeforeCloseA = stream.getConsumerBackpressure(consumerA.id);
+        backpressureBeforeCloseB = stream.getConsumerBackpressure(consumerB.id);
         stream.close('close others');
       })();
 
@@ -1236,7 +1238,7 @@ describe('WritableAsyncIterableStream', () => {
       await Promise.all([
         (async () => {
           while (true) {
-            let packet = await iteratorA.next();
+            let packet = await consumerA.next();
             await wait(50);
             receivedPacketsA.push(packet);
             if (packet.done) break;
@@ -1244,7 +1246,7 @@ describe('WritableAsyncIterableStream', () => {
         })(),
         (async () => {
           while (true) {
-            let packet = await iteratorB.next();
+            let packet = await consumerB.next();
             await wait(50);
             receivedPacketsB.push(packet);
             if (packet.done) break;
@@ -1252,7 +1254,7 @@ describe('WritableAsyncIterableStream', () => {
         })()
       ]);
 
-      let maxBackpressureAfterConsume = stream.getMaxBackpressure();
+      let maxBackpressureAfterConsume = stream.getBackpressure();
 
       assert.equal(backpressureBeforeCloseA, 12);
       assert.equal(backpressureBeforeCloseB, 12);
@@ -1278,17 +1280,17 @@ describe('WritableAsyncIterableStream', () => {
       let backpressureBeforeClose;
       let backpressureAfterClose;
 
-      let iteratorA = stream.createAsyncIterator();
-      let iteratorB = stream.createAsyncIterator();
+      let consumerA = stream.createConsumer();
+      let consumerB = stream.createConsumer();
 
       (async () => {
         await wait(10);
         for (let i = 0; i < 10; i++) {
           stream.write('hello' + i);
         }
-        backpressureBeforeClose = stream.getMaxBackpressure();
-        stream.closeConsumer(iteratorA.consumerId, 'custom close data');
-        backpressureAfterClose = stream.getMaxBackpressure();
+        backpressureBeforeClose = stream.getBackpressure();
+        stream.closeConsumer(consumerA.id, 'custom close data');
+        backpressureAfterClose = stream.getBackpressure();
       })();
 
       let receivedPacketsA = [];
@@ -1297,7 +1299,7 @@ describe('WritableAsyncIterableStream', () => {
       await Promise.race([
         (async () => {
           while (true) {
-            let packet = await iteratorA.next();
+            let packet = await consumerA.next();
             await wait(50);
             receivedPacketsA.push(packet);
             if (packet.done) break;
@@ -1305,7 +1307,7 @@ describe('WritableAsyncIterableStream', () => {
         })(),
         (async () => {
           while (true) {
-            let packet = await iteratorB.next();
+            let packet = await consumerB.next();
             await wait(50);
             receivedPacketsB.push(packet);
             if (packet.done) break;
@@ -1313,7 +1315,7 @@ describe('WritableAsyncIterableStream', () => {
         })()
       ]);
 
-      let backpressureAfterConsume = stream.getMaxBackpressure();
+      let backpressureAfterConsume = stream.getBackpressure();
 
       assert.equal(backpressureBeforeClose, 10);
       assert.equal(backpressureAfterClose, 11);
@@ -1325,15 +1327,15 @@ describe('WritableAsyncIterableStream', () => {
       assert.equal(receivedPacketsB[0].value, 'hello0');
       assert.equal(receivedPacketsB[9].value, 'hello9');
 
-      stream.close(iteratorB.consumerId);
+      stream.close(consumerB.id);
       await wait(10);
 
       assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
     });
 
     it('should be able to write to a specific consumer', async () => {
-      let iteratorA = stream.createAsyncIterator();
-      let iteratorB = stream.createAsyncIterator();
+      let consumerA = stream.createConsumer();
+      let consumerB = stream.createConsumer();
 
       (async () => {
         await wait(10);
@@ -1341,7 +1343,7 @@ describe('WritableAsyncIterableStream', () => {
           stream.write('hello' + i);
         }
         for (let i = 0; i < 3; i++) {
-          stream.writeToConsumer(iteratorA.consumerId, 'hi' + i);
+          stream.writeToConsumer(consumerA.id, 'hi' + i);
         }
         stream.close('close all');
       })();
@@ -1352,7 +1354,7 @@ describe('WritableAsyncIterableStream', () => {
       await Promise.all([
         (async () => {
           while (true) {
-            let packet = await iteratorA.next();
+            let packet = await consumerA.next();
             await wait(50);
             receivedPacketsA.push(packet);
             if (packet.done) break;
@@ -1360,7 +1362,7 @@ describe('WritableAsyncIterableStream', () => {
         })(),
         (async () => {
           while (true) {
-            let packet = await iteratorB.next();
+            let packet = await consumerB.next();
             await wait(50);
             receivedPacketsB.push(packet);
             if (packet.done) break;
@@ -1368,7 +1370,7 @@ describe('WritableAsyncIterableStream', () => {
         })()
       ]);
 
-      let backpressureAfterConsume = stream.getMaxBackpressure();
+      let backpressureAfterConsume = stream.getBackpressure();
 
       assert.equal(backpressureAfterConsume, 0);
       assert.equal(receivedPacketsA.length, 14);

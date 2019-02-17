@@ -1,9 +1,10 @@
 const AsyncIterableStream = require('async-iterable-stream');
+const Consumer = require('./consumer');
 
 class WritableAsyncIterableStream extends AsyncIterableStream {
   constructor() {
     super();
-    this._nextConsumerId = 1;
+    this.nextConsumerId = 1;
     this._consumers = {};
     this._linkedListTailNode = {
       next: null,
@@ -70,7 +71,7 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
   killConsumer(consumerId, value) {
     let consumer = this._consumers[consumerId];
     if (!consumer) {
-      throw new Error('The specified consumer does not exist');
+      return;
     }
     if (consumer.timeoutId !== undefined) {
       clearTimeout(consumer.timeoutId);
@@ -84,7 +85,7 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
     }
   }
 
-  getMaxBackpressure() {
+  getBackpressure() {
     let consumerList = Object.values(this._consumers);
     let len = consumerList.length;
 
@@ -98,7 +99,7 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
     return maxBackpressure;
   }
 
-  getBackpressure(consumerId) {
+  getConsumerBackpressure(consumerId) {
     let consumer = this._consumers[consumerId];
     if (consumer) {
       return consumer.backpressure;
@@ -106,12 +107,16 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
     return 0;
   }
 
-  getNextConsumerId() {
-    return this._nextConsumerId;
-  }
-
   hasConsumer(consumerId) {
     return !!this._consumers[consumerId];
+  }
+
+  setConsumer(consumerId, consumer) {
+    this._consumers[consumerId] = consumer;
+  }
+
+  removeConsumer(consumerId) {
+    delete this._consumers[consumerId];
   }
 
   getConsumerStats() {
@@ -128,7 +133,7 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
     return consumerStats;
   }
 
-  async _waitForNextDataNode(consumer, timeout) {
+  async waitForNextItem(consumer, timeout) {
     return new Promise((resolve, reject) => {
       let timeoutId;
       if (timeout !== undefined) {
@@ -149,54 +154,8 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
     });
   }
 
-  createAsyncIterator(timeout) {
-    let consumerId = this._nextConsumerId++;
-    let currentNode = this._linkedListTailNode;
-    let consumer = {
-      id: consumerId,
-      backpressure: 0
-    };
-    this._consumers[consumerId] = consumer;
-
-    return {
-      consumerId,
-      next: async () => {
-        while (true) {
-          this._consumers[consumerId] = consumer;
-          if (!currentNode.next) {
-            try {
-              await this._waitForNextDataNode(consumer, timeout);
-            } catch (error) {
-              delete this._consumers[consumerId];
-              throw error;
-            }
-          }
-          if (consumer.kill) {
-            consumer.backpressure = 0;
-            delete this._consumers[consumerId];
-            let killPacket = consumer.kill;
-            delete consumer.kill;
-            return killPacket;
-          }
-
-          consumer.backpressure--;
-          currentNode = currentNode.next;
-
-          if (currentNode.consumerId && currentNode.consumerId !== consumerId) {
-            continue;
-          }
-
-          if (currentNode.data.done) {
-            delete this._consumers[consumerId];
-          }
-          return currentNode.data;
-        }
-      },
-      return: () => {
-        delete this._consumers[consumerId];
-        return {};
-      }
-    };
+  createConsumer(timeout) {
+    return new Consumer(this, this.nextConsumerId++, this._linkedListTailNode, timeout);
   }
 }
 
