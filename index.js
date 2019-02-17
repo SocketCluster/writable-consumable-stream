@@ -14,11 +14,14 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
     };
   }
 
-  _write(value, done) {
+  _write(value, done, consumerId) {
     let dataNode = {
       data: {value, done},
       next: null
     };
+    if (consumerId) {
+      dataNode.consumerId = consumerId;
+    }
     this._linkedListTailNode.next = dataNode;
     this._linkedListTailNode = dataNode;
 
@@ -48,21 +51,36 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
     this._write(value, true);
   }
 
+  writeToConsumer(consumerId, value) {
+    this._write(value, false, consumerId);
+  }
+
+  closeConsumer(consumerId, value) {
+    this._write(value, true, consumerId);
+  }
+
   kill(value) {
-    let consumerList = Object.values(this._consumers);
-    let len = consumerList.length;
+    let consumerIdList = Object.keys(this._consumers);
+    let len = consumerIdList.length;
     for (let i = 0; i < len; i++) {
-      let consumer = consumerList[i];
-      if (consumer.timeoutId !== undefined) {
-        clearTimeout(consumer.timeoutId);
-        delete consumer.timeoutId;
-      }
-      consumer.backpressure++;
-      consumer.kill = {value, done: true};
-      if (consumer.resolve) {
-        consumer.resolve();
-        delete consumer.resolve;
-      }
+      this.killConsumer(consumerIdList[i], value);
+    }
+  }
+
+  killConsumer(consumerId, value) {
+    let consumer = this._consumers[consumerId];
+    if (!consumer) {
+      throw new Error('The specified consumer does not exist');
+    }
+    if (consumer.timeoutId !== undefined) {
+      clearTimeout(consumer.timeoutId);
+      delete consumer.timeoutId;
+    }
+    consumer.backpressure++;
+    consumer.kill = {value, done: true};
+    if (consumer.resolve) {
+      consumer.resolve();
+      delete consumer.resolve;
     }
   }
 
@@ -86,6 +104,10 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
       return consumer.backpressure;
     }
     return 0;
+  }
+
+  getNextConsumerId() {
+    return this._nextConsumerId;
   }
 
   hasConsumer(consumerId) {
@@ -156,7 +178,10 @@ class WritableAsyncIterableStream extends AsyncIterableStream {
           return killPacket;
         }
         consumer.backpressure--;
-        currentNode = currentNode.next;
+        do {
+          currentNode = currentNode.next;
+        } while (currentNode.consumerId && currentNode.consumerId !== consumerId);
+
         if (currentNode.data.done) {
           delete this._consumers[consumerId];
         }
