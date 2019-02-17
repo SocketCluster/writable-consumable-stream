@@ -125,10 +125,7 @@ class WritableConsumableStream extends ConsumableStream {
     let len = consumerList.length;
     for (let i = 0; i < len; i++) {
       let consumer = consumerList[i];
-      consumerStats.push({
-        id: consumer.id,
-        backpressure: consumer.backpressure
-      });
+      consumerStats.push(consumer.getStats());
     }
     return consumerStats;
   }

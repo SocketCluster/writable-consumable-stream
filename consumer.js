@@ -8,6 +8,17 @@ class Consumer {
     this.stream.setConsumer(this.id, this);
   }
 
+  getStats() {
+    let stats = {
+      id: this.id,
+      backpressure: this.backpressure
+    };
+    if (this.timeout != null) {
+      stats.timeout = this.timeout;
+    }
+    return stats;
+  }
+
   async next() {
     this.stream.setConsumer(this.id, this);
     while (true) {
