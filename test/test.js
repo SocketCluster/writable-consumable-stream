@@ -1,4 +1,4 @@
-const WritableAsyncIterableStream = require('../index');
+const WritableConsumableStream = require('../index');
 const assert = require('assert');
 
 let pendingTimeoutSet = new Set();
@@ -19,12 +19,12 @@ function cancelAllPendingWaits() {
   }
 }
 
-describe('WritableAsyncIterableStream', () => {
+describe('WritableConsumableStream', () => {
   let stream;
 
   describe('for-await-of loop', () => {
     beforeEach(async () => {
-      stream = new WritableAsyncIterableStream();
+      stream = new WritableConsumableStream();
     });
 
     afterEach(async () => {
@@ -268,10 +268,10 @@ describe('WritableAsyncIterableStream', () => {
       })();
 
       let receivedPackets = [];
-      let asyncIterable = stream.createConsumable(20);
+      let consumable = stream.createConsumable(20);
       let error;
       try {
-        for await (let packet of asyncIterable) {
+        for await (let packet of consumable) {
           receivedPackets.push(packet);
         }
       } catch (err) {
@@ -299,10 +299,10 @@ describe('WritableAsyncIterableStream', () => {
       })();
 
       let receivedPackets = [];
-      let asyncIterable = stream.createConsumable(20);
+      let consumable = stream.createConsumable(20);
       let error;
       try {
-        for await (let packet of asyncIterable) {
+        for await (let packet of consumable) {
           receivedPackets.push(packet);
         }
       } catch (err) {
@@ -329,10 +329,10 @@ describe('WritableAsyncIterableStream', () => {
       })();
 
       let receivedPackets = [];
-      let asyncIterable = stream.createConsumable(20);
+      let consumable = stream.createConsumable(20);
       let error;
       try {
-        for await (let packet of asyncIterable) {
+        for await (let packet of consumable) {
           receivedPackets.push(packet);
         }
       } catch (err) {
@@ -367,10 +367,10 @@ describe('WritableAsyncIterableStream', () => {
       })();
 
       let receivedPackets = [];
-      let iterable = stream.createConsumable();
+      let consumable = stream.createConsumable();
 
       while (true) {
-        for await (let data of iterable) {
+        for await (let data of consumable) {
           receivedPackets.push(data);
         }
         if (!resume) break;
@@ -412,7 +412,7 @@ describe('WritableAsyncIterableStream', () => {
 
   describe('kill', () => {
     beforeEach(async () => {
-      stream = new WritableAsyncIterableStream();
+      stream = new WritableConsumableStream();
     });
 
     afterEach(async () => {
@@ -652,7 +652,7 @@ describe('WritableAsyncIterableStream', () => {
 
   describe('backpressure', () => {
     beforeEach(async () => {
-      stream = new WritableAsyncIterableStream();
+      stream = new WritableConsumableStream();
     });
 
     afterEach(async () => {
@@ -876,6 +876,9 @@ describe('WritableAsyncIterableStream', () => {
       assert.equal(iterAData.done, true);
       assert.equal(iterBData.done, true);
 
+      assert.equal(iterA.backpressure, 0);
+      assert.equal(iterB.backpressure, 0);
+
       assert.equal(stream.getBackpressure(), 0);
 
       assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
@@ -884,7 +887,7 @@ describe('WritableAsyncIterableStream', () => {
 
   describe('await once', () => {
     beforeEach(async () => {
-      stream = new WritableAsyncIterableStream();
+      stream = new WritableConsumableStream();
     });
 
     afterEach(async () => {
@@ -1011,7 +1014,7 @@ describe('WritableAsyncIterableStream', () => {
 
   describe('while loop with await inside', () => {
     beforeEach(async () => {
-      stream = new WritableAsyncIterableStream();
+      stream = new WritableConsumableStream();
     });
 
     afterEach(async () => {
@@ -1146,7 +1149,7 @@ describe('WritableAsyncIterableStream', () => {
 
   describe('actions on an individual consumer', () => {
     beforeEach(async () => {
-      stream = new WritableAsyncIterableStream();
+      stream = new WritableConsumableStream();
     });
 
     afterEach(async () => {

@@ -1,13 +1,13 @@
-# writable-async-iterable-stream
+# writable-consumable-stream
 An async stream which can be iterated over using a for-await-of loop and which can be written to.
 
-The `WritableAsyncIterableStream` class extends the `AsyncIterableStream` class.  
-See https://github.com/SocketCluster/async-iterable-stream
+The `WritableConsumableStream` class extends the `ConsumableStream` class.  
+See https://github.com/SocketCluster/consumable-stream
 
 ## Installation
 
 ```
-npm install writable-async-iterable-stream
+npm install writable-consumable-stream
 ```
 
 ## Usage
@@ -15,7 +15,7 @@ npm install writable-async-iterable-stream
 ### Consume a stream and write to it asynchronously:
 
 ```js
-let iterableStream = new WritableAsyncIterableStream();
+let consumableStream = new WritableConsumableStream();
 
 async function consumeAsyncIterable(asyncIterable) {
   // Consume iterable data asynchronously.
@@ -23,18 +23,18 @@ async function consumeAsyncIterable(asyncIterable) {
     console.log('Packet:', packet);
   }
 }
-consumeAsyncIterable(iterableStream);
+consumeAsyncIterable(consumableStream);
 
 setInterval(() => {
   // Write data to the stream asynchronously,
-  iterableStream.write(`Timestamp: ${Date.now()}`);
+  consumableStream.write(`Timestamp: ${Date.now()}`);
 }, 100);
 ```
 
 ### Consume a stream using a while loop:
 
 ```js
-let iterableStream = new WritableAsyncIterableStream();
+let consumableStream = new WritableConsumableStream();
 
 async function consumeAsyncIterable(asyncIterable) {
   // Consume iterable data asynchronously.
@@ -46,18 +46,18 @@ async function consumeAsyncIterable(asyncIterable) {
     console.log('Packet:', packet.value);
   }
 }
-consumeAsyncIterable(iterableStream);
+consumeAsyncIterable(consumableStream);
 
 setInterval(() => {
   // Write data to the stream asynchronously,
-  iterableStream.write(`Timestamp: ${Date.now()}`);
+  consumableStream.write(`Timestamp: ${Date.now()}`);
 }, 100);
 ```
 
 ### Consume a filtered stream using an async generator:
 
 ```js
-let iterableStream = new WritableAsyncIterableStream();
+let consumableStream = new WritableConsumableStream();
 
 // Creates an async generator which only produces packets which are allowed by the
 // specified filterFunction.
@@ -80,29 +80,29 @@ async function consumeAsyncIterable(asyncIterable) {
 function filterFn(data) {
   return /5$/.test(data);
 }
-let filteredStreamGenerator = createFilteredStreamGenerator(iterableStream, filterFn);
+let filteredStreamGenerator = createFilteredStreamGenerator(consumableStream, filterFn);
 
 consumeAsyncIterable(filteredStreamGenerator);
 
 setInterval(() => {
   // Write data to the stream asynchronously,
-  iterableStream.write(`Timestamp: ${Date.now()}`);
+  consumableStream.write(`Timestamp: ${Date.now()}`);
 }, 100);
 ```
 
 ### Consume only the next data object which will be written to the stream:
 
 ```js
-let iterableStream = new WritableAsyncIterableStream();
+let consumableStream = new WritableConsumableStream();
 
 (async () => {
-  let data = await iterableStream.once();
+  let data = await consumableStream.once();
   console.log(data);
 })();
 
 setInterval(() => {
   // Write data to the stream asynchronously,
-  iterableStream.write(`Timestamp: ${Date.now()}`);
+  consumableStream.write(`Timestamp: ${Date.now()}`);
 }, 100);
 ```
 

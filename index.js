@@ -1,7 +1,7 @@
-const AsyncIterableStream = require('async-iterable-stream');
+const ConsumableStream = require('consumable-stream');
 const Consumer = require('./consumer');
 
-class WritableAsyncIterableStream extends AsyncIterableStream {
+class WritableConsumableStream extends ConsumableStream {
   constructor() {
     super();
     this.nextConsumerId = 1;
@@ -167,4 +167,4 @@ function wait(timeout) {
   return {timeoutId, promise};
 }
 
-module.exports = WritableAsyncIterableStream;
+module.exports = WritableConsumableStream;
