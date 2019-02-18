@@ -663,12 +663,12 @@ describe('WritableConsumableStream', () => {
     it('should track backpressure correctly when consuming stream', async () => {
       await Promise.all([
         (async () => {
-          let consumerStats = stream.getAllConsumerStats();
+          let consumerStats = stream.getConsumerStatsList();
           assert.equal(consumerStats.length, 0);
 
           await wait(10);
 
-          consumerStats = stream.getAllConsumerStats();
+          consumerStats = stream.getConsumerStatsList();
           assert.equal(consumerStats.length, 1);
           assert.equal(consumerStats[0].backpressure, 0);
           assert.equal(consumerStats[0].id, 1);
@@ -678,19 +678,19 @@ describe('WritableConsumableStream', () => {
 
           stream.write('a0');
 
-          consumerStats = stream.getAllConsumerStats();
+          consumerStats = stream.getConsumerStatsList();
           assert.equal(consumerStats.length, 1);
           assert.equal(consumerStats[0].backpressure, 1);
 
           await wait(10);
 
-          consumerStats = stream.getAllConsumerStats();
+          consumerStats = stream.getConsumerStatsList();
           assert.equal(consumerStats.length, 1);
           assert.equal(consumerStats[0].backpressure, 0);
 
           stream.write('a1');
 
-          consumerStats = stream.getAllConsumerStats();
+          consumerStats = stream.getConsumerStatsList();
           assert.equal(consumerStats.length, 1);
           assert.equal(consumerStats[0].backpressure, 1);
 
@@ -701,13 +701,13 @@ describe('WritableConsumableStream', () => {
           await wait(10);
           stream.write('a4');
 
-          consumerStats = stream.getAllConsumerStats();
+          consumerStats = stream.getConsumerStatsList();
           assert.equal(consumerStats.length, 1);
           assert.equal(consumerStats[0].backpressure, 4);
 
           stream.close();
 
-          consumerStats = stream.getAllConsumerStats();
+          consumerStats = stream.getConsumerStatsList();
           assert.equal(consumerStats.length, 1);
           assert.equal(consumerStats[0].backpressure, 5);
         })(),
@@ -716,11 +716,11 @@ describe('WritableConsumableStream', () => {
           for await (let data of stream) {
             expectedPressure--;
             await wait(70);
-            let consumerStats = stream.getAllConsumerStats();
+            let consumerStats = stream.getConsumerStatsList();
             assert.equal(consumerStats.length, 1);
             assert.equal(consumerStats[0].backpressure, expectedPressure);
           }
-          let consumerStats = stream.getAllConsumerStats();
+          let consumerStats = stream.getConsumerStatsList();
           assert.equal(consumerStats.length, 0);
         })()
       ]);
@@ -734,7 +734,7 @@ describe('WritableConsumableStream', () => {
           for (let i = 0; i < 10; i++) {
             await wait(10);
             stream.write('a' + i);
-            let consumerStats = stream.getAllConsumerStats();
+            let consumerStats = stream.getConsumerStatsList();
             assert.equal(consumerStats.length, 1);
             assert.equal(consumerStats[0].backpressure, i + 1);
           }
@@ -750,7 +750,7 @@ describe('WritableConsumableStream', () => {
             expectedPressure--;
             await wait(120);
             let data = await iter.next();
-            let consumerStats = stream.getAllConsumerStats();
+            let consumerStats = stream.getConsumerStatsList();
 
             if (data.done) {
               assert.equal(consumerStats.length, 0);
@@ -769,19 +769,19 @@ describe('WritableConsumableStream', () => {
       let iterA = stream.createConsumer();
       assert.equal(iterA.id, 1);
 
-      let consumerStats = stream.getAllConsumerStats();
+      let consumerStats = stream.getConsumerStatsList();
       assert.equal(consumerStats.length, 1);
       assert.equal(consumerStats[0].backpressure, 0);
 
       await wait(10);
 
-      consumerStats = stream.getAllConsumerStats();
+      consumerStats = stream.getConsumerStatsList();
       assert.equal(consumerStats.length, 1);
       assert.equal(consumerStats[0].backpressure, 0);
 
       stream.write('a0');
 
-      consumerStats = stream.getAllConsumerStats();
+      consumerStats = stream.getConsumerStatsList();
       assert.equal(consumerStats.length, 1);
       assert.equal(consumerStats[0].backpressure, 1);
 
@@ -797,7 +797,7 @@ describe('WritableConsumableStream', () => {
       await wait(10);
       stream.write('a4');
 
-      consumerStats = stream.getAllConsumerStats();
+      consumerStats = stream.getConsumerStatsList();
       assert.equal(consumerStats.length, 2);
       assert.equal(consumerStats[0].backpressure, 5);
 
@@ -810,14 +810,14 @@ describe('WritableConsumableStream', () => {
 
       await iterA.next();
 
-      consumerStats = stream.getAllConsumerStats();
+      consumerStats = stream.getConsumerStatsList();
       assert.equal(consumerStats.length, 2);
       assert.equal(consumerStats[0].backpressure, 4);
 
       await iterA.next();
       await iterA.next();
 
-      consumerStats = stream.getAllConsumerStats();
+      consumerStats = stream.getConsumerStatsList();
       assert.equal(consumerStats.length, 2);
       assert.equal(consumerStats[0].backpressure, 2);
 
@@ -825,14 +825,14 @@ describe('WritableConsumableStream', () => {
       stream.write('a6');
       stream.write('a7');
 
-      consumerStats = stream.getAllConsumerStats();
+      consumerStats = stream.getConsumerStatsList();
       assert.equal(consumerStats.length, 2);
       assert.equal(consumerStats[0].backpressure, 5);
       assert.equal(stream.getConsumerBackpressure(2), 5);
 
       stream.close();
 
-      consumerStats = stream.getAllConsumerStats();
+      consumerStats = stream.getConsumerStatsList();
       assert.equal(consumerStats.length, 2);
       assert.equal(consumerStats[0].backpressure, 6);
 
@@ -847,7 +847,7 @@ describe('WritableConsumableStream', () => {
 
       assert.equal(stream.getConsumerBackpressure(2), 6);
 
-      consumerStats = stream.getAllConsumerStats();
+      consumerStats = stream.getConsumerStatsList();
       assert.equal(consumerStats.length, 2);
       assert.equal(consumerStats[0].backpressure, 1);
 
@@ -863,7 +863,7 @@ describe('WritableConsumableStream', () => {
 
       assert.equal(stream.getConsumerBackpressure(2), 0);
 
-      consumerStats = stream.getAllConsumerStats();
+      consumerStats = stream.getConsumerStatsList();
       assert.equal(consumerStats.length, 1);
       assert.equal(consumerStats[0].backpressure, 1);
 
@@ -871,7 +871,7 @@ describe('WritableConsumableStream', () => {
 
       let iterAData = await iterA.next();
 
-      consumerStats = stream.getAllConsumerStats();
+      consumerStats = stream.getConsumerStatsList();
       assert.equal(consumerStats.length, 0);
       assert.equal(iterAData.done, true);
       assert.equal(iterBData.done, true);

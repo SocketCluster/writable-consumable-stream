@@ -127,7 +127,7 @@ class WritableConsumableStream extends ConsumableStream {
     return undefined;
   }
 
-  getAllConsumerStats() {
+  getConsumerStatsList() {
     let consumerStats = [];
     let consumerList = Object.values(this._consumers);
     let len = consumerList.length;
