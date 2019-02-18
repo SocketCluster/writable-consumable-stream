@@ -119,7 +119,15 @@ class WritableConsumableStream extends ConsumableStream {
     delete this._consumers[consumerId];
   }
 
-  getConsumerStats() {
+  getConsumerStats(consumerId) {
+    let consumer = this._consumers[consumerId];
+    if (consumer) {
+      return consumer.getStats();
+    }
+    return undefined;
+  }
+
+  getAllConsumerStats() {
     let consumerStats = [];
     let consumerList = Object.values(this._consumers);
     let len = consumerList.length;
