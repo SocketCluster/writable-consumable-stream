@@ -648,6 +648,20 @@ describe('WritableConsumableStream', () => {
 
       assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
     });
+
+    it('should stop consumers which have not started iterating', async () => {
+      let consumer = stream.createConsumer();
+
+      for (let i = 0; i < 10; i++) {
+        stream.write('hello' + i);
+      }
+
+      stream.kill('end');
+
+      await wait(10);
+
+      assert.equal(consumer.getBackpressure(), 0);
+    });
   });
 
   describe('backpressure', () => {
