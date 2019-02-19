@@ -278,6 +278,9 @@ describe('WritableConsumableStream', () => {
         error = err;
       }
 
+      let consumerStatsList = stream.getConsumerStatsList();
+      assert.equal(consumerStatsList.length, 0);
+
       assert.notEqual(error, null);
       assert.equal(error.name, 'TimeoutError');
       assert.equal(receivedPackets.length, 0);
@@ -309,6 +312,9 @@ describe('WritableConsumableStream', () => {
         error = err;
       }
 
+      let consumerStatsList = stream.getConsumerStatsList();
+      assert.equal(consumerStatsList.length, 0);
+
       assert.notEqual(error, null);
       assert.equal(error.name, 'TimeoutError');
       assert.equal(receivedPackets.length, 3);
@@ -338,6 +344,9 @@ describe('WritableConsumableStream', () => {
       } catch (err) {
         error = err;
       }
+
+      let consumerStatsList = stream.getConsumerStatsList();
+      assert.equal(consumerStatsList.length, 0);
 
       assert.notEqual(error, null);
       assert.equal(error.name, 'TimeoutError');
@@ -555,11 +564,6 @@ describe('WritableConsumableStream', () => {
         if (packet.done) break;
         receivedPackets.push(packet);
       }
-      while (true) {
-        let packet = await consumer.next();
-        if (packet.done) break;
-        receivedPackets.push(packet);
-      }
       assert.equal(receivedPackets.length, 10);
 
       assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
@@ -614,14 +618,14 @@ describe('WritableConsumableStream', () => {
 
       (async () => {
         for (let i = 0; i < 10; i++) {
-          await wait(20);
+          await wait(40);
           if (!isWriting) return;
           stream.write('a' + i);
         }
       })();
 
       (async () => {
-        await wait(110);
+        await wait(220);
         stream.kill();
         isWriting = false;
       })();
@@ -638,7 +642,7 @@ describe('WritableConsumableStream', () => {
         (async () => {
           for await (let packet of stream) {
             receivedPacketsB.push(packet);
-            await wait(150);
+            await wait(300);
           }
         })()
       ]);
@@ -647,6 +651,20 @@ describe('WritableConsumableStream', () => {
       assert.equal(receivedPacketsB.length, 1);
 
       assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+    });
+
+    it('should stop consumers which have not started iterating', async () => {
+      let consumer = stream.createConsumer();
+
+      for (let i = 0; i < 10; i++) {
+        stream.write('hello' + i);
+      }
+
+      stream.kill('end');
+
+      await wait(10);
+
+      assert.equal(consumer.getBackpressure(), 0);
     });
   });
 
@@ -803,9 +821,9 @@ describe('WritableConsumableStream', () => {
 
       assert.equal(stream.getBackpressure(), 5);
 
-      assert.equal(iterA.backpressure, 5);
+      assert.equal(iterA.getBackpressure(), 5);
       assert.equal(stream.getConsumerBackpressure(1), 5);
-      assert.equal(iterB.backpressure, 2);
+      assert.equal(iterB.getBackpressure(), 2);
       assert.equal(stream.getConsumerBackpressure(2), 2);
 
       await iterA.next();
@@ -876,12 +894,96 @@ describe('WritableConsumableStream', () => {
       assert.equal(iterAData.done, true);
       assert.equal(iterBData.done, true);
 
-      assert.equal(iterA.backpressure, 0);
-      assert.equal(iterB.backpressure, 0);
+      assert.equal(iterA.getBackpressure(), 0);
+      assert.equal(iterB.getBackpressure(), 0);
 
       assert.equal(stream.getBackpressure(), 0);
 
       assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+    });
+
+    it('should reset backpressure after invoking consumer.return()', async () => {
+      let consumer = stream.createConsumer();
+
+      for (let i = 0; i < 10; i++) {
+        stream.write('hello' + i);
+      }
+      stream.close('end');
+
+      await wait(10);
+      consumer.return();
+
+      // console.log(111, stream.getConsumerStatsList());
+      // console.log(111, consumer.getBackpressure());
+
+      assert.equal(stream.getConsumerStatsList().length, 0);
+      assert.equal(consumer.getBackpressure(), 0);
+
+      for (let i = 0; i < 10; i++) {
+        stream.write('hi' + i);
+      }
+      stream.close('end');
+
+      await wait(10);
+
+      assert.equal(stream.getConsumerStatsList().length, 0);
+      assert.equal(consumer.getBackpressure(), 0);
+
+      consumer.return();
+
+      assert.equal(stream.getConsumerStatsList().length, 0);
+      assert.equal(consumer.getBackpressure(), 0);
+    });
+
+    it('should be able to calculate correct backpressure after invoking consumer.return()', async () => {
+      let consumer = stream.createConsumer();
+
+      for (let i = 0; i < 10; i++) {
+        stream.write('hello' + i);
+      }
+
+      stream.close('end');
+
+      await wait(10);
+      consumer.return();
+
+      assert.equal(stream.getConsumerStatsList().length, 0);
+      assert.equal(consumer.getBackpressure(), 0);
+
+      (async () => {
+        await wait(10);
+        for (let i = 0; i < 10; i++) {
+          stream.write('hi' + i);
+        }
+        stream.close('end');
+      })();
+
+      let receivedPackets = [];
+
+      let expectedPressure = 10;
+      while (true) {
+        let packet = await consumer.next();
+        assert.equal(consumer.getBackpressure(), expectedPressure);
+        let consumerStatsList = stream.getConsumerStatsList();
+        if (expectedPressure > 0) {
+          assert.equal(consumerStatsList.length, 1);
+          assert.equal(consumerStatsList[0].backpressure, expectedPressure);
+        } else {
+          assert.equal(consumerStatsList.length, 0);
+        }
+        expectedPressure--;
+        receivedPackets.push(packet);
+        if (packet.done) break;
+      }
+
+      assert.equal(receivedPackets.length, 11);
+      assert.equal(receivedPackets[0].value, 'hi0');
+      assert.equal(receivedPackets[9].value, 'hi9');
+      assert.equal(receivedPackets[10].done, true);
+      assert.equal(receivedPackets[10].value, 'end');
+
+      assert.equal(stream.getConsumerStatsList().length, 0);
+      assert.equal(consumer.getBackpressure(), 0);
     });
   });
 
