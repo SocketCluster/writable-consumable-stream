@@ -23,7 +23,7 @@ class Consumer {
     this._resolve = resolve;
   }
 
-  deleteResolver() {
+  clearResolver() {
     delete this._resolve;
   }
 
@@ -52,7 +52,6 @@ class Consumer {
   }
 
   kill(value) {
-    console.log('KILLA'); // TODO 2
     this._killPacket = {value, done: true};
     this.applyBackpressure(this._killPacket);
     if (this._resolve) {
@@ -73,7 +72,6 @@ class Consumer {
         }
       }
       if (this._killPacket) {
-        console.log('KILLBBB'); // TODO 2
         this.resetBackpressure();
         this.stream.removeConsumer(this.id);
         let killPacket = this._killPacket;

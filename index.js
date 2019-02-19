@@ -142,7 +142,7 @@ class WritableConsumableStream extends ConsumableStream {
           timeoutId = delay.timeoutId;
           await delay.promise;
           error.name = 'TimeoutError';
-          consumer.deleteResolver(); 
+          consumer.clearResolver();
           reject(error);
         })();
       }
