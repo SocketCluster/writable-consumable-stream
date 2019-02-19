@@ -614,14 +614,14 @@ describe('WritableConsumableStream', () => {
 
       (async () => {
         for (let i = 0; i < 10; i++) {
-          await wait(20);
+          await wait(40);
           if (!isWriting) return;
           stream.write('a' + i);
         }
       })();
 
       (async () => {
-        await wait(110);
+        await wait(220);
         stream.kill();
         isWriting = false;
       })();
@@ -638,7 +638,7 @@ describe('WritableConsumableStream', () => {
         (async () => {
           for await (let packet of stream) {
             receivedPacketsB.push(packet);
-            await wait(150);
+            await wait(300);
           }
         })()
       ]);
@@ -803,9 +803,9 @@ describe('WritableConsumableStream', () => {
 
       assert.equal(stream.getBackpressure(), 5);
 
-      assert.equal(iterA.backpressure, 5);
+      assert.equal(iterA.getBackpressure(), 5);
       assert.equal(stream.getConsumerBackpressure(1), 5);
-      assert.equal(iterB.backpressure, 2);
+      assert.equal(iterB.getBackpressure(), 2);
       assert.equal(stream.getConsumerBackpressure(2), 2);
 
       await iterA.next();
@@ -876,8 +876,8 @@ describe('WritableConsumableStream', () => {
       assert.equal(iterAData.done, true);
       assert.equal(iterBData.done, true);
 
-      assert.equal(iterA.backpressure, 0);
-      assert.equal(iterB.backpressure, 0);
+      assert.equal(iterA.getBackpressure(), 0);
+      assert.equal(iterB.getBackpressure(), 0);
 
       assert.equal(stream.getBackpressure(), 0);
 

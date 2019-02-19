@@ -1,7 +1,7 @@
 class Consumer {
   constructor(stream, id, startNode, timeout) {
     this.id = id;
-    this.backpressure = 0;
+    this._backpressure = 0;
     this.stream = stream;
     this.currentNode = startNode;
     this.timeout = timeout;
@@ -11,12 +11,54 @@ class Consumer {
   getStats() {
     let stats = {
       id: this.id,
-      backpressure: this.backpressure
+      backpressure: this._backpressure
     };
     if (this.timeout != null) {
       stats.timeout = this.timeout;
     }
     return stats;
+  }
+
+  setResolver(resolve) {
+    this._resolve = resolve;
+  }
+
+  deleteResolver() {
+    delete this._resolve;
+  }
+
+  resetBackpressure() {
+    this._backpressure = 0;
+  }
+
+  applyBackpressure(packet) {
+    this._backpressure++;
+  }
+
+  releaseBackpressure(packet) {
+    this._backpressure--;
+  }
+
+  getBackpressure() {
+    return this._backpressure;
+  }
+
+  write(packet) {
+    this.applyBackpressure(packet);
+    if (this._resolve) {
+      this._resolve();
+      delete this._resolve;
+    }
+  }
+
+  kill(value) {
+    console.log('KILLA'); // TODO 2
+    this._killPacket = {value, done: true};
+    this.applyBackpressure(this._killPacket);
+    if (this._resolve) {
+      this._resolve();
+      delete this._resolve;
+    }
   }
 
   async next() {
@@ -30,16 +72,17 @@ class Consumer {
           throw error;
         }
       }
-      if (this.kill) {
-        this.backpressure = 0;
+      if (this._killPacket) {
+        console.log('KILLBBB'); // TODO 2
+        this.resetBackpressure();
         this.stream.removeConsumer(this.id);
-        let killPacket = this.kill;
-        delete this.kill;
+        let killPacket = this._killPacket;
+        delete this._killPacket;
         return killPacket;
       }
 
-      this.backpressure--;
       this.currentNode = this.currentNode.next;
+      this.releaseBackpressure(this.currentNode)
 
       if (this.currentNode.consumerId && this.currentNode.consumerId !== this.id) {
         continue;

@@ -35,12 +35,7 @@ class WritableConsumableStream extends ConsumableStream {
         clearTimeout(consumer.timeoutId);
         delete consumer.timeoutId;
       }
-      consumer.backpressure++;
-
-      if (consumer.resolve) {
-        consumer.resolve();
-        delete consumer.resolve;
-      }
+      consumer.write(dataNode.data);
     }
   }
 
@@ -77,12 +72,7 @@ class WritableConsumableStream extends ConsumableStream {
       clearTimeout(consumer.timeoutId);
       delete consumer.timeoutId;
     }
-    consumer.backpressure++;
-    consumer.kill = {value, done: true};
-    if (consumer.resolve) {
-      consumer.resolve();
-      delete consumer.resolve;
-    }
+    consumer.kill(value);
   }
 
   getBackpressure() {
@@ -92,8 +82,9 @@ class WritableConsumableStream extends ConsumableStream {
     let maxBackpressure = 0;
     for (let i = 0; i < len; i++) {
       let consumer = consumerList[i];
-      if (consumer.backpressure > maxBackpressure) {
-        maxBackpressure = consumer.backpressure;
+      let backpressure = consumer.getBackpressure();
+      if (backpressure > maxBackpressure) {
+        maxBackpressure = backpressure;
       }
     }
     return maxBackpressure;
@@ -102,7 +93,7 @@ class WritableConsumableStream extends ConsumableStream {
   getConsumerBackpressure(consumerId) {
     let consumer = this._consumers[consumerId];
     if (consumer) {
-      return consumer.backpressure;
+      return consumer.getBackpressure();
     }
     return 0;
   }
@@ -140,6 +131,7 @@ class WritableConsumableStream extends ConsumableStream {
 
   async waitForNextItem(consumer, timeout) {
     return new Promise((resolve, reject) => {
+      consumer.setResolver(resolve); // TODO 2
       let timeoutId;
       if (timeout !== undefined) {
         // Create the error object in the outer scope in order
@@ -150,11 +142,10 @@ class WritableConsumableStream extends ConsumableStream {
           timeoutId = delay.timeoutId;
           await delay.promise;
           error.name = 'TimeoutError';
-          delete consumer.resolve;
+          consumer.deleteResolver(); 
           reject(error);
         })();
       }
-      consumer.resolve = resolve;
       consumer.timeoutId = timeoutId;
     });
   }
