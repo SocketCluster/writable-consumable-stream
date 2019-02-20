@@ -20,14 +20,6 @@ class Consumer {
     return stats;
   }
 
-  setResolver(resolve) {
-    this._resolve = resolve;
-  }
-
-  clearResolver() {
-    delete this._resolve;
-  }
-
   resetBackpressure() {
     this._backpressure = 0;
   }
@@ -45,6 +37,10 @@ class Consumer {
   }
 
   write(packet) {
+    if (this._timeoutId !== undefined) {
+      clearTimeout(this._timeoutId);
+      delete this._timeoutId;
+    }
     this.applyBackpressure(packet);
     if (this._resolve) {
       this._resolve();
@@ -53,18 +49,42 @@ class Consumer {
   }
 
   kill(value) {
-    this._killPacket = {value, done: true};
-    this.applyBackpressure(this._killPacket);
+    if (this._timeoutId !== undefined) {
+      clearTimeout(this._timeoutId);
+      delete this._timeoutId;
+    }
+    if (this._isIterating) { // TODO 2
+      this._killPacket = {value, done: true};
+      this.applyBackpressure(this._killPacket);
+    } else {
+      this.resetBackpressure();
+      this.stream.removeConsumer(this.id);
+    }
     if (this._resolve) {
       this._resolve();
       delete this._resolve;
     }
-    if (!this._isIterating) {
-      console.log('killed but is not iterating'); // TODO 2
-      this.resetBackpressure();
-      this.stream.removeConsumer(this.id);
-      delete this._killPacket;
-    }
+  }
+
+  async _waitForNextItem(timeout) {
+    return new Promise((resolve, reject) => {
+      this._resolve = resolve;
+      let timeoutId;
+      if (timeout !== undefined) {
+        // Create the error object in the outer scope in order
+        // to get the full stack trace.
+        let error = new Error('Stream consumer iteration timed out');
+        (async () => {
+          let delay = wait(timeout);
+          timeoutId = delay.timeoutId;
+          await delay.promise;
+          error.name = 'TimeoutError';
+          delete this._resolve;
+          reject(error);
+        })();
+      }
+      this._timeoutId = timeoutId;
+    });
   }
 
   async next() {
@@ -73,7 +93,7 @@ class Consumer {
     while (true) {
       if (!this.currentNode.next) {
         try {
-          await this.stream.waitForNextItem(this, this.timeout);
+          await this._waitForNextItem(this.timeout);
         } catch (error) {
           this.stream.removeConsumer(this.id);
           throw error;
@@ -102,11 +122,18 @@ class Consumer {
   }
 
   return() {
-    console.log('TODO 2 return');
     this._isIterating = false;
     this.stream.removeConsumer(this.id);
     return {};
   }
+}
+
+function wait(timeout) {
+  let timeoutId;
+  let promise = new Promise((resolve) => {
+    timeoutId = setTimeout(resolve, timeout);
+  });
+  return {timeoutId, promise};
 }
 
 module.exports = Consumer;

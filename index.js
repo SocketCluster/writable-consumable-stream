@@ -31,10 +31,6 @@ class WritableConsumableStream extends ConsumableStream {
 
     for (let i = 0; i < len; i++) {
       let consumer = consumerList[i];
-      if (consumer.timeoutId !== undefined) {
-        clearTimeout(consumer.timeoutId);
-        delete consumer.timeoutId;
-      }
       consumer.write(dataNode.data);
     }
   }
@@ -67,10 +63,6 @@ class WritableConsumableStream extends ConsumableStream {
     let consumer = this._consumers[consumerId];
     if (!consumer) {
       return;
-    }
-    if (consumer.timeoutId !== undefined) {
-      clearTimeout(consumer.timeoutId);
-      delete consumer.timeoutId;
     }
     consumer.kill(value);
   }
@@ -129,38 +121,9 @@ class WritableConsumableStream extends ConsumableStream {
     return consumerStats;
   }
 
-  async waitForNextItem(consumer, timeout) {
-    return new Promise((resolve, reject) => {
-      consumer.setResolver(resolve); // TODO 2
-      let timeoutId;
-      if (timeout !== undefined) {
-        // Create the error object in the outer scope in order
-        // to get the full stack trace.
-        let error = new Error('Stream consumer iteration timed out');
-        (async () => {
-          let delay = wait(timeout);
-          timeoutId = delay.timeoutId;
-          await delay.promise;
-          error.name = 'TimeoutError';
-          consumer.clearResolver();
-          reject(error);
-        })();
-      }
-      consumer.timeoutId = timeoutId;
-    });
-  }
-
   createConsumer(timeout) {
     return new Consumer(this, this.nextConsumerId++, this._linkedListTailNode, timeout);
   }
-}
-
-function wait(timeout) {
-  let timeoutId;
-  let promise = new Promise((resolve) => {
-    timeoutId = setTimeout(resolve, timeout);
-  });
-  return {timeoutId, promise};
 }
 
 module.exports = WritableConsumableStream;
