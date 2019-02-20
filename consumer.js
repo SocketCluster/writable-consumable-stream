@@ -112,7 +112,7 @@ class Consumer {
       }
 
       this.currentNode = this.currentNode.next;
-      this.releaseBackpressure(this.currentNode)
+      this.releaseBackpressure(this.currentNode.data);
 
       if (this.currentNode.consumerId && this.currentNode.consumerId !== this.id) {
         continue;
