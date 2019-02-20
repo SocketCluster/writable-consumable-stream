@@ -540,9 +540,11 @@ describe('WritableConsumableStream', () => {
     it('should be able to start reading from a killed stream immediately', async () => {
       (async () => {
         await wait(10);
+        console.log('TODO 2 started writing');
         for (let i = 0; i < 10; i++) {
           stream.write('hello' + i);
         }
+        console.log('TODO 2 fisnihed write');
         stream.close();
       })();
 
@@ -551,12 +553,15 @@ describe('WritableConsumableStream', () => {
 
       let receivedPackets = [];
       while (true) {
+        console.log('TODO 2 called next 1');
         let packet = await consumer.next();
+        console.log('TODO 2 consume 1');
         if (packet.done) break;
         receivedPackets.push(packet);
       }
       while (true) {
         let packet = await consumer.next();
+        console.log('TODO 2 consume 2');
         if (packet.done) break;
         receivedPackets.push(packet);
       }

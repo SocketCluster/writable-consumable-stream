@@ -5,6 +5,7 @@ class Consumer {
     this.stream = stream;
     this.currentNode = startNode;
     this.timeout = timeout;
+    this._isIterating = false;
     this.stream.setConsumer(this.id, this);
   }
 
@@ -58,9 +59,16 @@ class Consumer {
       this._resolve();
       delete this._resolve;
     }
+    if (!this._isIterating) {
+      console.log('killed but is not iterating'); // TODO 2
+      this.resetBackpressure();
+      this.stream.removeConsumer(this.id);
+      delete this._killPacket;
+    }
   }
 
   async next() {
+    this._isIterating = true;
     this.stream.setConsumer(this.id, this);
     while (true) {
       if (!this.currentNode.next) {
@@ -94,6 +102,8 @@ class Consumer {
   }
 
   return() {
+    console.log('TODO 2 return');
+    this._isIterating = false;
     this.stream.removeConsumer(this.id);
     return {};
   }
