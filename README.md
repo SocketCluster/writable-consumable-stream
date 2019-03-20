@@ -67,7 +67,7 @@ async function* createFilteredStreamGenerator(fullStream, filterFunction) {
       yield packet;
     }
   }
-};
+}
 
 async function consumeAsyncIterable(asyncIterable) {
   // Consume iterable data asynchronously.
