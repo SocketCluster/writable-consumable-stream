@@ -5,7 +5,7 @@ class Consumer {
     this.stream = stream;
     this.currentNode = startNode;
     this.timeout = timeout;
-    this._isIterating = false;
+    this.isAlive = true;
     this.stream.setConsumer(this.id, this);
   }
 
@@ -20,7 +20,7 @@ class Consumer {
     return stats;
   }
 
-  resetBackpressure() {
+  _resetBackpressure() {
     this._backpressure = 0;
   }
 
@@ -53,17 +53,19 @@ class Consumer {
       clearTimeout(this._timeoutId);
       delete this._timeoutId;
     }
-    if (this._isIterating) {
-      this._killPacket = {value, done: true};
-      this.applyBackpressure(this._killPacket);
-    } else {
-      this.stream.removeConsumer(this.id);
-      this.resetBackpressure();
-    }
+    this._killPacket = {value, done: true};
+    this._destroy();
+
     if (this._resolve) {
       this._resolve();
       delete this._resolve;
     }
+  }
+
+  _destroy() {
+    this.isAlive = false;
+    this._resetBackpressure();
+    this.stream.removeConsumer(this.id);
   }
 
   async _waitForNextItem(timeout) {
@@ -88,7 +90,6 @@ class Consumer {
   }
 
   async next() {
-    this._isIterating = true;
     this.stream.setConsumer(this.id, this);
 
     while (true) {
@@ -96,15 +97,12 @@ class Consumer {
         try {
           await this._waitForNextItem(this.timeout);
         } catch (error) {
-          this._isIterating = false;
-          this.stream.removeConsumer(this.id);
+          this._destroy();
           throw error;
         }
       }
       if (this._killPacket) {
-        this._isIterating = false;
-        this.stream.removeConsumer(this.id);
-        this.resetBackpressure();
+        this._destroy();
         let killPacket = this._killPacket;
         delete this._killPacket;
 
@@ -119,8 +117,7 @@ class Consumer {
       }
 
       if (this.currentNode.data.done) {
-        this._isIterating = false;
-        this.stream.removeConsumer(this.id);
+        this._destroy();
       }
 
       return this.currentNode.data;
@@ -129,10 +126,12 @@ class Consumer {
 
   return() {
     delete this.currentNode;
-    this._isIterating = false;
-    this.stream.removeConsumer(this.id);
-    this.resetBackpressure();
+    this._destroy();
     return {};
+  }
+
+  [Symbol.asyncIterator]() {
+    return this;
   }
 }
 

@@ -268,7 +268,7 @@ describe('WritableConsumableStream', () => {
       })();
 
       let receivedPackets = [];
-      let consumable = stream.createConsumable(20);
+      let consumable = stream.createConsumer(20);
       let error;
       try {
         for await (let packet of consumable) {
@@ -302,7 +302,7 @@ describe('WritableConsumableStream', () => {
       })();
 
       let receivedPackets = [];
-      let consumable = stream.createConsumable(20);
+      let consumable = stream.createConsumer(20);
       let error;
       try {
         for await (let packet of consumable) {
@@ -335,7 +335,7 @@ describe('WritableConsumableStream', () => {
       })();
 
       let receivedPackets = [];
-      let consumable = stream.createConsumable(20);
+      let consumable = stream.createConsumer(20);
       let error;
       try {
         for await (let packet of consumable) {
@@ -376,7 +376,7 @@ describe('WritableConsumableStream', () => {
       })();
 
       let receivedPackets = [];
-      let consumable = stream.createConsumable();
+      let consumable = stream.createConsumer();
 
       while (true) {
         for await (let data of consumable) {
@@ -451,7 +451,7 @@ describe('WritableConsumableStream', () => {
       let backpressureAfterConsume = stream.getBackpressure();
 
       assert.equal(backpressureBeforeKill, 10);
-      assert.equal(backpressureAfterKill, 11);
+      assert.equal(backpressureAfterKill, 0);
       assert.equal(backpressureAfterConsume, 0);
       assert.equal(receivedPackets.length, 0);
 
@@ -546,7 +546,7 @@ describe('WritableConsumableStream', () => {
       assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
     });
 
-    it('should be able to start reading from a killed stream immediately', async () => {
+    it('should set consumer.isAlive to false if stream is killed', async () => { // TODO 22
       (async () => {
         await wait(10);
         for (let i = 0; i < 10; i++) {
@@ -556,7 +556,9 @@ describe('WritableConsumableStream', () => {
       })();
 
       let consumer = stream.createConsumer();
+      assert.equal(consumer.isAlive, true);
       stream.kill();
+      assert.equal(consumer.isAlive, false);
 
       let receivedPackets = [];
       while (true) {
@@ -564,7 +566,7 @@ describe('WritableConsumableStream', () => {
         if (packet.done) break;
         receivedPackets.push(packet);
       }
-      assert.equal(receivedPackets.length, 10);
+      assert.equal(receivedPackets.length, 0);
 
       assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
     });
@@ -912,9 +914,6 @@ describe('WritableConsumableStream', () => {
 
       await wait(10);
       consumer.return();
-
-      // console.log(111, stream.getConsumerStatsList());
-      // console.log(111, consumer.getBackpressure());
 
       assert.equal(stream.getConsumerStatsList().length, 0);
       assert.equal(consumer.getBackpressure(), 0);
@@ -1302,7 +1301,7 @@ describe('WritableConsumableStream', () => {
       let backpressureAfterConsume = stream.getBackpressure();
 
       assert.equal(backpressureBeforeKill, 10);
-      assert.equal(backpressureAfterKill, 11);
+      assert.equal(backpressureAfterKill, 10); // consumerB was still running.
       assert.equal(backpressureAfterConsume, 0);
       assert.equal(receivedPacketsA.length, 1);
       assert.equal(receivedPacketsA[0].done, true);
