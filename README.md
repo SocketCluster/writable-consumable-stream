@@ -12,6 +12,12 @@ npm install writable-consumable-stream
 
 ## Usage
 
+### Require
+
+```js
+const WritableConsumableStream = require('writable-consumable-stream');
+```
+
 ### Consume a stream and write to it asynchronously:
 
 ```js
