@@ -117,6 +117,10 @@ class WritableConsumableStream extends ConsumableStream {
     return new Consumer(this, this.nextConsumerId++, this._tailNode, timeout);
   }
 
+  getConsumerList() {
+    return [...this._consumers.values()];
+  }
+
   getConsumerCount() {
     return this._consumers.size;
   }
