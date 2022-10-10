@@ -46,7 +46,7 @@ describe('WritableConsumableStream', () => {
         receivedPackets.push(packet);
       }
       assert.equal(receivedPackets.length, 10);
-      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+      assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
     });
 
     it('should receive packets asynchronously if multiple packets are written sequentially', async () => {
@@ -72,7 +72,7 @@ describe('WritableConsumableStream', () => {
       assert.equal(receivedPackets[4], 'b1');
       assert.equal(receivedPackets[5], 'c1');
       assert.equal(receivedPackets[29], 'c9');
-      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+      assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
     });
 
     it('should receive packets if stream is written to from inside a consuming for-await-of loop', async () => {
@@ -94,7 +94,7 @@ describe('WritableConsumableStream', () => {
       }
       assert.equal(receivedPackets[0], 'a0');
       assert.equal(receivedPackets.some(message => message === 'nested0'), true);
-      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+      assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
     });
 
     it('should only consume messages which were written after the consumer was created', async () => {
@@ -120,7 +120,7 @@ describe('WritableConsumableStream', () => {
       assert.equal(receivedPackets[0], 'three');
       assert.equal(receivedPackets[1], 'four');
       assert.equal(receivedPackets[2], 'five');
-      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+      assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
     });
 
     it('should not miss packets if it awaits inside a for-await-of loop', async () => {
@@ -142,7 +142,7 @@ describe('WritableConsumableStream', () => {
       for (let i = 0; i < 10; i++) {
         assert.equal(receivedPackets[i], 'a' + i);
       }
-      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+      assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
     });
 
     it('should not miss packets if it awaits inside two concurrent for-await-of loops', async () => {
@@ -181,7 +181,7 @@ describe('WritableConsumableStream', () => {
       for (let i = 0; i < 10; i++) {
         assert.equal(receivedPacketsB[i], 'a' + i);
       }
-      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+      assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
     });
 
     it('should be able to resume consumption after the stream has been closed', async () => {
@@ -214,7 +214,7 @@ describe('WritableConsumableStream', () => {
       }
 
       assert.equal(receivedPacketsB.length, 10);
-      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+      assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
     });
 
     it('should be able to resume consumption of messages written within the same stack frame after the stream has been closed', async () => {
@@ -255,7 +255,7 @@ describe('WritableConsumableStream', () => {
       assert.equal(receivedPackets[3], 'six');
       assert.equal(receivedPackets[4], 'seven');
 
-      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+      assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
     });
 
     it('should be able to optionally timeout the consumer iterator when write delay is consistent', async () => {
@@ -285,7 +285,7 @@ describe('WritableConsumableStream', () => {
       assert.equal(error.name, 'TimeoutError');
       assert.equal(receivedPackets.length, 0);
 
-      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+      assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
     });
 
     it('should be able to optionally timeout the consumer iterator when write delay is inconsistent', async () => {
@@ -321,7 +321,7 @@ describe('WritableConsumableStream', () => {
       assert.equal(receivedPackets[0], 'hello0');
       assert.equal(receivedPackets[2], 'hello2');
 
-      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+      assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
     });
 
     it('should be able to optionally timeout the consumer iterator even if steam is not explicitly closed', async () => {
@@ -354,7 +354,7 @@ describe('WritableConsumableStream', () => {
       assert.equal(receivedPackets[0], 'hello0');
       assert.equal(receivedPackets[1], 'hello1');
 
-      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+      assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
     });
 
     it('should be able to resume consumption immediately after stream is closed unless a condition is met', async () => {
@@ -387,7 +387,7 @@ describe('WritableConsumableStream', () => {
 
       assert.equal(receivedPackets.length, 10);
 
-      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+      assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
     });
 
     it('should be able to close stream with custom data', async () => {
@@ -415,7 +415,7 @@ describe('WritableConsumableStream', () => {
       assert.equal(receivedPackets.length, 5);
       assert.equal(receivedEndPacket, 'done123');
 
-      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+      assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
     });
   });
 
@@ -455,7 +455,7 @@ describe('WritableConsumableStream', () => {
       assert.equal(backpressureAfterConsume, 0);
       assert.equal(receivedPackets.length, 0);
 
-      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+      assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
     });
 
     it('should cancel timeout when stream is killed', async () => {
@@ -475,7 +475,7 @@ describe('WritableConsumableStream', () => {
       let backpressure = stream.getBackpressure();
       assert.equal(backpressure, 0);
 
-      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+      assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
     });
 
     it('should be able to restart a killed stream', async () => {
@@ -515,7 +515,7 @@ describe('WritableConsumableStream', () => {
       assert.equal(receivedPackets[1], 'world0');
       assert.equal(receivedPackets[10], 'world9');
 
-      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+      assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
     });
 
     it('should be able to start writing to a killed stream immediately', async () => {
@@ -543,7 +543,7 @@ describe('WritableConsumableStream', () => {
       }
       assert.equal(receivedPackets.length, 10);
 
-      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+      assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
     });
 
     it('should set consumer.isAlive to false if stream is killed', async () => { // TODO 22
@@ -568,7 +568,7 @@ describe('WritableConsumableStream', () => {
       }
       assert.equal(receivedPackets.length, 0);
 
-      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+      assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
     });
 
     it('should pass kill data to consumer when stream is killed if using consumer', async () => {
@@ -593,7 +593,7 @@ describe('WritableConsumableStream', () => {
       assert.equal(receivedPackets.length, 1);
       assert.equal(receivedPackets[0].value, 12345);
 
-      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+      assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
     });
 
     it('should stop consumer at the end of the current iteration when stream is killed and iteration has already started', async () => {
@@ -612,7 +612,7 @@ describe('WritableConsumableStream', () => {
       }
       assert.equal(receivedPackets.length, 1);
 
-      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+      assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
     });
 
     it('should stop all consumers immediately', async () => {
@@ -652,7 +652,7 @@ describe('WritableConsumableStream', () => {
       assert.equal(receivedPacketsA.length, 5);
       assert.equal(receivedPacketsB.length, 1);
 
-      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+      assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
     });
 
     it('should stop consumers which have not started iterating', async () => {
@@ -745,7 +745,7 @@ describe('WritableConsumableStream', () => {
         })()
       ]);
 
-      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+      assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
     });
 
     it('should track backpressure correctly when consuming stream with a consumer', async () => {
@@ -782,7 +782,7 @@ describe('WritableConsumableStream', () => {
         })()
       ]);
 
-      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+      assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
     });
 
     it('should track backpressure correctly when writing to and consuming stream intermittently with multiple consumers', async () => {
@@ -901,7 +901,7 @@ describe('WritableConsumableStream', () => {
 
       assert.equal(stream.getBackpressure(), 0);
 
-      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+      assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
     });
 
     it('should reset backpressure after invoking consumer.return()', async () => {
@@ -1013,7 +1013,7 @@ describe('WritableConsumableStream', () => {
       nextPacket = await stream.once();
       assert.equal(nextPacket, 'a2');
 
-      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+      assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
     });
 
     it('should throw an error if a number is passed to the once() method and it times out', async () => {
@@ -1039,7 +1039,7 @@ describe('WritableConsumableStream', () => {
       assert.notEqual(error, null);
       assert.equal(error.name, 'TimeoutError');
 
-      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+      assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
     });
 
     it('should not resolve once() call when stream.close() is called', async () => {
@@ -1058,7 +1058,7 @@ describe('WritableConsumableStream', () => {
       await wait(100);
       assert.equal(receivedPackets.length, 0);
 
-      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+      assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
     });
 
     it('should not resolve previous once() call after stream.close() is called', async () => {
@@ -1079,7 +1079,7 @@ describe('WritableConsumableStream', () => {
       await wait(100);
       assert.equal(receivedPackets.length, 0);
 
-      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+      assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
     });
 
     it('should resolve once() if it is called after stream.close() is called and then a new packet is written', async () => {
@@ -1109,7 +1109,7 @@ describe('WritableConsumableStream', () => {
       let packet = await stream.once();
       assert.equal(packet, 'bar');
 
-      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+      assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
     });
   });
 
@@ -1141,7 +1141,7 @@ describe('WritableConsumableStream', () => {
       }
       assert.equal(receivedPackets.length, 10);
 
-      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+      assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
     });
 
     it('should receive packets asynchronously if multiple packets are written sequentially', async () => {
@@ -1171,7 +1171,7 @@ describe('WritableConsumableStream', () => {
       assert.equal(receivedPackets[5], 'c1');
       assert.equal(receivedPackets[29], 'c9');
 
-      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+      assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
     });
 
     it('should be able to timeout the consumer if the stream is idle for too long', async () => {
@@ -1199,7 +1199,7 @@ describe('WritableConsumableStream', () => {
       assert.notEqual(error, null);
       assert.equal(error.name, 'TimeoutError');
 
-      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+      assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
     });
 
     it('should be able to continue iterating if a single iteration times out', async () => {
@@ -1237,7 +1237,7 @@ describe('WritableConsumableStream', () => {
       assert.notEqual(errors[0], null);
       assert.equal(errors[0].name, 'TimeoutError');
 
-      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+      assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
     });
 
     it('should be able to get the next consumer id', async () => {
@@ -1310,7 +1310,7 @@ describe('WritableConsumableStream', () => {
       assert.equal(receivedPacketsB[0].value, 'hello0');
       assert.equal(receivedPacketsB[9].value, 'hello9');
 
-      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+      assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
     });
 
     it('should stop a specific consumer when that consumer is closed', async () => {
@@ -1377,7 +1377,7 @@ describe('WritableConsumableStream', () => {
       assert.equal(receivedPacketsB[11].done, true);
       assert.equal(receivedPacketsB[11].value, 'close others');
 
-      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+      assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
     });
 
     it('should support closing only one of multiple consumers', async () => {
@@ -1434,7 +1434,7 @@ describe('WritableConsumableStream', () => {
       stream.close(consumerB.id);
       await wait(10);
 
-      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+      assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
     });
 
     it('should be able to write to a specific consumer', async () => {
@@ -1490,7 +1490,124 @@ describe('WritableConsumableStream', () => {
       assert.equal(receivedPacketsB[10].done, true);
       assert.equal(receivedPacketsB[10].value, 'close all');
 
-      assert.equal(Object.keys(stream._consumers).length, 0); // Check internal cleanup.
+      assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
+    });
+  });
+
+  describe('consumer count', () => {
+    beforeEach(async () => {
+      stream = new WritableConsumableStream();
+    });
+
+    afterEach(async () => {
+      cancelAllPendingWaits();
+      stream.close();
+    });
+
+    it('should return the number of consumers as 1 after stream.createConsumer() is used once', async () => {
+      (async () => {
+        for await (let message of stream.createConsumer()) {}
+      })();
+
+      assert.equal(stream.getConsumerCount(), 1);
+    });
+
+    it('should return the number of consumers as 2 after stream.createConsumer() is used twice', async () => {
+      (async () => {
+        for await (let message of stream.createConsumer()) {}
+      })();
+      (async () => {
+        for await (let message of stream.createConsumer()) {}
+      })();
+
+      assert.equal(stream.getConsumerCount(), 2);
+    });
+
+    it('should return the number of consumers as 1 after stream is consumed directly by for-await-of loop once', async () => {
+      (async () => {
+        for await (let message of stream) {}
+      })();
+
+      assert.equal(stream.getConsumerCount(), 1);
+    });
+
+    it('should return the number of consumers as 2 after stream is consumed directly by for-await-of loop twice', async () => {
+      (async () => {
+        for await (let message of stream) {}
+      })();
+
+      (async () => {
+        for await (let message of stream) {}
+      })();
+
+      assert.equal(stream.getConsumerCount(), 2);
+    });
+
+    it('should return the number of consumers as 0 after stream is killed', async () => {
+      (async () => {
+        for await (let message of stream.createConsumer()) {}
+      })();
+      (async () => {
+        for await (let message of stream.createConsumer()) {}
+      })();
+
+      stream.kill();
+
+      assert.equal(stream.getConsumerCount(), 0);
+    });
+
+    it('should return the number of consumers as 1 after a specific consumer is killed', async () => {
+      let consumerA;
+      (async () => {
+        consumerA = stream.createConsumer();
+        for await (let message of consumerA) {}
+      })();
+      (async () => {
+        for await (let message of stream.createConsumer()) {}
+      })();
+
+      stream.killConsumer(consumerA.id);
+
+      assert.equal(stream.getConsumerCount(), 1);
+    });
+
+    it('should return the number of consumers as 0 after stream is close after last message has been consumed', async () => {
+      (async () => {
+        for await (let message of stream.createConsumer()) {}
+      })();
+      (async () => {
+        for await (let message of stream.createConsumer()) {}
+      })();
+      (async () => {
+        for await (let message of stream.createConsumer()) {}
+      })();
+
+      stream.close();
+
+      assert.equal(stream.getConsumerCount(), 3);
+
+      await wait(1000);
+
+      assert.equal(stream.getConsumerCount(), 0);
+    });
+
+    it('should return the number of consumers as 1 after a specific consumer is closed after last message has been consumed', async () => {
+      let consumerA;
+      (async () => {
+        consumerA = stream.createConsumer();
+        for await (let message of consumerA) {}
+      })();
+      (async () => {
+        for await (let message of stream.createConsumer()) {}
+      })();
+
+      stream.closeConsumer(consumerA.id);
+
+      assert.equal(stream.getConsumerCount(), 2);
+
+      await wait(1000);
+
+      assert.equal(stream.getConsumerCount(), 1);
     });
   });
 });

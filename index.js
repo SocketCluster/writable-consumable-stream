@@ -5,7 +5,7 @@ class WritableConsumableStream extends ConsumableStream {
   constructor() {
     super();
     this.nextConsumerId = 1;
-    this._consumers = {};
+    this._consumers = new Map();
 
     // Tail node of a singly linked list.
     this._tailNode = {
@@ -28,11 +28,7 @@ class WritableConsumableStream extends ConsumableStream {
     this._tailNode.next = dataNode;
     this._tailNode = dataNode;
 
-    let consumerList = Object.values(this._consumers);
-    let len = consumerList.length;
-
-    for (let i = 0; i < len; i++) {
-      let consumer = consumerList[i];
+    for (let consumer of this._consumers.values()) {
       consumer.write(dataNode.data);
     }
   }
@@ -54,15 +50,13 @@ class WritableConsumableStream extends ConsumableStream {
   }
 
   kill(value) {
-    let consumerIdList = Object.keys(this._consumers);
-    let len = consumerIdList.length;
-    for (let i = 0; i < len; i++) {
-      this.killConsumer(consumerIdList[i], value);
+    for (let consumerId of this._consumers.keys()) {
+      this.killConsumer(consumerId, value);
     }
   }
 
   killConsumer(consumerId, value) {
-    let consumer = this._consumers[consumerId];
+    let consumer = this._consumers.get(consumerId);
     if (!consumer) {
       return;
     }
@@ -70,12 +64,8 @@ class WritableConsumableStream extends ConsumableStream {
   }
 
   getBackpressure() {
-    let consumerList = Object.values(this._consumers);
-    let len = consumerList.length;
-
     let maxBackpressure = 0;
-    for (let i = 0; i < len; i++) {
-      let consumer = consumerList[i];
+    for (let consumer of this._consumers.values()) {
       let backpressure = consumer.getBackpressure();
       if (backpressure > maxBackpressure) {
         maxBackpressure = backpressure;
@@ -85,7 +75,7 @@ class WritableConsumableStream extends ConsumableStream {
   }
 
   getConsumerBackpressure(consumerId) {
-    let consumer = this._consumers[consumerId];
+    let consumer = this._consumers.get(consumerId);
     if (consumer) {
       return consumer.getBackpressure();
     }
@@ -93,22 +83,22 @@ class WritableConsumableStream extends ConsumableStream {
   }
 
   hasConsumer(consumerId) {
-    return !!this._consumers[consumerId];
+    return this._consumers.has(consumerId);
   }
 
   setConsumer(consumerId, consumer) {
-    this._consumers[consumerId] = consumer;
+    this._consumers.set(consumerId, consumer);
     if (!consumer.currentNode) {
       consumer.currentNode = this._tailNode;
     }
   }
 
   removeConsumer(consumerId) {
-    delete this._consumers[consumerId];
+    return this._consumers.delete(consumerId);
   }
 
   getConsumerStats(consumerId) {
-    let consumer = this._consumers[consumerId];
+    let consumer = this._consumers.get(consumerId);
     if (consumer) {
       return consumer.getStats();
     }
@@ -117,10 +107,7 @@ class WritableConsumableStream extends ConsumableStream {
 
   getConsumerStatsList() {
     let consumerStats = [];
-    let consumerList = Object.values(this._consumers);
-    let len = consumerList.length;
-    for (let i = 0; i < len; i++) {
-      let consumer = consumerList[i];
+    for (let consumer of this._consumers.values()) {
       consumerStats.push(consumer.getStats());
     }
     return consumerStats;
@@ -128,6 +115,10 @@ class WritableConsumableStream extends ConsumableStream {
 
   createConsumer(timeout) {
     return new Consumer(this, this.nextConsumerId++, this._tailNode, timeout);
+  }
+
+  getConsumerCount() {
+    return this._consumers.size;
   }
 }
 
