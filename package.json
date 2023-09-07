@@ -24,7 +24,7 @@
   },
   "homepage": "https://github.com/SocketCluster/writable-consumable-stream#readme",
   "devDependencies": {
-    "mocha": "^5.2.0"
+    "mocha": "^10.2.0"
   },
   "dependencies": {
     "consumable-stream": "^3.0.0"
