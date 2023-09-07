@@ -458,7 +458,7 @@ describe('WritableConsumableStream', () => {
       assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
     });
 
-    it('should cancel timeout when stream is killed', async () => {
+    it('should throw a timeout error early when stream is killed', async () => {
       (async () => {
         await wait(10);
         for (let i = 0; i < 10; i++) {
@@ -467,10 +467,17 @@ describe('WritableConsumableStream', () => {
         stream.kill();
       })();
 
-      await Promise.race([
-        stream.once(50), // This should not throw an error.
-        wait(100) // This one should execute first.
-      ]);
+      let error;
+      try {
+        await Promise.race([
+          stream.once(200), // This should throw an error early.
+          wait(100)
+        ]);
+      } catch (err) {
+        error = err;
+      }
+
+      assert.equal(error.name, 'TimeoutError');
 
       let backpressure = stream.getBackpressure();
       assert.equal(backpressure, 0);

@@ -2,10 +2,10 @@ class Consumer {
   constructor(stream, id, startNode, timeout) {
     this.id = id;
     this._backpressure = 0;
-    this.stream = stream;
     this.currentNode = startNode;
     this.timeout = timeout;
     this.isAlive = true;
+    this.stream = stream;
     this.stream.setConsumer(this.id, this);
   }
 
@@ -36,10 +36,14 @@ class Consumer {
     return this._backpressure;
   }
 
+  clearActiveTimeout() {
+    clearTimeout(this._timeoutId);
+    delete this._timeoutId;
+  }
+
   write(packet) {
     if (this._timeoutId !== undefined) {
-      clearTimeout(this._timeoutId);
-      delete this._timeoutId;
+      this.clearActiveTimeout(packet);
     }
     this.applyBackpressure(packet);
     if (this._resolve) {
@@ -49,11 +53,10 @@ class Consumer {
   }
 
   kill(value) {
-    if (this._timeoutId !== undefined) {
-      clearTimeout(this._timeoutId);
-      delete this._timeoutId;
-    }
     this._killPacket = {value, done: true};
+    if (this._timeoutId !== undefined) {
+      this.clearActiveTimeout(this._killPacket);
+    }
     this._destroy();
 
     if (this._resolve) {
