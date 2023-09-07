@@ -8,7 +8,7 @@ class WritableConsumableStream extends ConsumableStream {
     this._consumers = new Map();
 
     // Tail node of a singly linked list.
-    this._tailNode = {
+    this.tailNode = {
       next: null,
       data: {
         value: undefined,
@@ -25,8 +25,8 @@ class WritableConsumableStream extends ConsumableStream {
     if (consumerId) {
       dataNode.consumerId = consumerId;
     }
-    this._tailNode.next = dataNode;
-    this._tailNode = dataNode;
+    this.tailNode.next = dataNode;
+    this.tailNode = dataNode;
 
     for (let consumer of this._consumers.values()) {
       consumer.write(dataNode.data);
@@ -89,7 +89,7 @@ class WritableConsumableStream extends ConsumableStream {
   setConsumer(consumerId, consumer) {
     this._consumers.set(consumerId, consumer);
     if (!consumer.currentNode) {
-      consumer.currentNode = this._tailNode;
+      consumer.currentNode = this.tailNode;
     }
   }
 
@@ -114,7 +114,7 @@ class WritableConsumableStream extends ConsumableStream {
   }
 
   createConsumer(timeout) {
-    return new Consumer(this, this.nextConsumerId++, this._tailNode, timeout);
+    return new Consumer(this, this.nextConsumerId++, this.tailNode, timeout);
   }
 
   getConsumerList() {
