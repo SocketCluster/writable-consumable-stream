@@ -1246,13 +1246,6 @@ describe('WritableConsumableStream', () => {
 
       assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
     });
-
-    it('should be able to get the next consumer id', async () => {
-      let nextConsumerId = stream.nextConsumerId;
-      let asyncIterator = stream.createConsumer();
-
-      assert.equal(nextConsumerId, asyncIterator.id);
-    });
   });
 
   describe('actions on an individual consumer', () => {

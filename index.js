@@ -2,9 +2,15 @@ const ConsumableStream = require('consumable-stream');
 const Consumer = require('./consumer');
 
 class WritableConsumableStream extends ConsumableStream {
-  constructor() {
+  constructor(options) {
     super();
-    this.nextConsumerId = 1;
+    options = options || {};
+    this._nextConsumerId = 1;
+    this.generateConsumerId = options.generateConsumerId;
+    if (!this.generateConsumerId) {
+      this.generateConsumerId = () => this._nextConsumerId++;
+    }
+    this.removeConsumerCallback = options.removeConsumerCallback;
     this._consumers = new Map();
 
     // Tail node of a singly linked list.
@@ -94,7 +100,9 @@ class WritableConsumableStream extends ConsumableStream {
   }
 
   removeConsumer(consumerId) {
-    return this._consumers.delete(consumerId);
+    let result = this._consumers.delete(consumerId);
+    if (this.removeConsumerCallback) this.removeConsumerCallback(consumerId);
+    return result;
   }
 
   getConsumerStats(consumerId) {
@@ -114,7 +122,7 @@ class WritableConsumableStream extends ConsumableStream {
   }
 
   createConsumer(timeout) {
-    return new Consumer(this, this.nextConsumerId++, this.tailNode, timeout);
+    return new Consumer(this, this.generateConsumerId(), this.tailNode, timeout);
   }
 
   getConsumerList() {
