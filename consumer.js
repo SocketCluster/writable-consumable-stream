@@ -36,9 +36,32 @@ class Consumer {
     return this._backpressure;
   }
 
+  getQueueDepth() {
+    if (!this.currentNode) {
+      return 0;
+    }
+    return this.stream.tailNode.seq - this.currentNode.seq;
+  }
+
   clearActiveTimeout() {
     clearTimeout(this._timeoutId);
     delete this._timeoutId;
+  }
+
+  // Called when a node addressed to a different consumer is appended to the
+  // shared queue. Such a node is not this consumer's backlog, so it must not
+  // count towards its backpressure, must not reset its inactivity timeout and
+  // must not wake it up; next() steps over it on the way to the next packet
+  // which is actually for this consumer.
+  // If this consumer is parked inside next() then it is waiting at the tail of
+  // the queue with nothing of its own pending, so it would step straight over
+  // this node once it was woken. Move it across now: otherwise currentNode
+  // would pin this node, and every node appended after it, in memory until a
+  // packet this consumer actually cares about arrives.
+  skipNode(dataNode) {
+    if (this._resolve) {
+      this.currentNode = dataNode;
+    }
   }
 
   write(packet) {
@@ -115,11 +138,12 @@ class Consumer {
       }
 
       this.currentNode = this.currentNode.next;
-      this.releaseBackpressure(this.currentNode.data);
 
       if (this.currentNode.consumerId !== undefined && this.currentNode.consumerId !== this.id) {
         continue;
       }
+
+      this.releaseBackpressure(this.currentNode.data);
 
       if (this.currentNode.data.done) {
         this._destroy();

@@ -16,6 +16,7 @@ class WritableConsumableStream extends ConsumableStream {
     // Tail node of a singly linked list.
     this.tailNode = {
       next: null,
+      seq: 0,
       data: {
         value: undefined,
         done: false
@@ -26,7 +27,8 @@ class WritableConsumableStream extends ConsumableStream {
   _write(value, done, consumerId) {
     let dataNode = {
       data: {value, done},
-      next: null
+      next: null,
+      seq: this.tailNode.seq + 1
     };
     if (consumerId !== undefined) {
       dataNode.consumerId = consumerId;
@@ -35,7 +37,11 @@ class WritableConsumableStream extends ConsumableStream {
     this.tailNode = dataNode;
 
     for (let consumer of this._consumers.values()) {
-      consumer.write(dataNode.data);
+      if (dataNode.consumerId !== undefined && dataNode.consumerId !== consumer.id) {
+        consumer.skipNode(dataNode);
+      } else {
+        consumer.write(dataNode.data);
+      }
     }
   }
 
@@ -75,15 +81,34 @@ class WritableConsumableStream extends ConsumableStream {
     consumer.kill(value);
   }
 
+  // The backpressure of the stream as a whole is the size of its queue; the
+  // main use case is memory management, so what matters is how many nodes are
+  // being pinned, not how many of them any single consumer still owes.
   getBackpressure() {
-    let maxBackpressure = 0;
+    return this.getQueueDepth();
+  }
+
+  // How many nodes of the shared queue the furthest-behind consumer is still
+  // pinning in memory, whether or not those nodes are addressed to it. This
+  // is what stream.getBackpressure() reports. Consumer-level backpressure is
+  // a different measure: how much work that consumer still owes.
+  getQueueDepth() {
+    let maxDepth = 0;
     for (let consumer of this._consumers.values()) {
-      let backpressure = consumer.getBackpressure();
-      if (backpressure > maxBackpressure) {
-        maxBackpressure = backpressure;
+      let depth = consumer.getQueueDepth();
+      if (depth > maxDepth) {
+        maxDepth = depth;
       }
     }
-    return maxBackpressure;
+    return maxDepth;
+  }
+
+  getConsumerQueueDepth(consumerId) {
+    let consumer = this._consumers.get(consumerId);
+    if (consumer) {
+      return consumer.getQueueDepth();
+    }
+    return 0;
   }
 
   getConsumerBackpressure(consumerId) {

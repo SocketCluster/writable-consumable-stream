@@ -1473,7 +1473,10 @@ describe('WritableConsumableStream', () => {
       let maxBackpressureAfterConsume = stream.getBackpressure();
 
       assert.equal(backpressureBeforeCloseA, 12);
-      assert.equal(backpressureBeforeCloseB, 12);
+      // consumerB is not charged for the packet which closeConsumer()
+      // addressed to consumerA; that node is on the shared queue but it is
+      // not part of consumerB's backlog.
+      assert.equal(backpressureBeforeCloseB, 11);
       assert.equal(maxBackpressureBeforeClose, 10);
       assert.equal(maxBackpressureAfterClose, 11);
       assert.equal(maxBackpressureAfterConsume, 0);
@@ -1814,6 +1817,329 @@ describe('WritableConsumableStream', () => {
       await wait(1000);
 
       assert.equal(stream.getConsumerCount(), 1);
+    });
+  });
+
+  describe('per-consumer backpressure attribution', () => {
+    beforeEach(async () => {
+      stream = new WritableConsumableStream();
+    });
+
+    afterEach(async () => {
+      cancelAllPendingWaits();
+      stream.close();
+    });
+
+    it('should not charge a consumer for packets which were addressed to a different consumer', async () => {
+      let consumerA = stream.createConsumer();
+      let consumerB = stream.createConsumer();
+
+      for (let i = 0; i < 10; i++) {
+        stream.writeToConsumer(consumerA.id, 'for-a' + i);
+      }
+
+      assert.equal(stream.getConsumerBackpressure(consumerA.id), 10);
+      assert.equal(stream.getConsumerBackpressure(consumerB.id), 0);
+      assert.equal(stream.getBackpressure(), 10);
+    });
+
+    it('should charge every consumer for broadcast packets', async () => {
+      let consumerA = stream.createConsumer();
+      let consumerB = stream.createConsumer();
+
+      stream.write('hello');
+      stream.writeToConsumer(consumerA.id, 'for-a');
+      stream.write('world');
+
+      assert.equal(stream.getConsumerBackpressure(consumerA.id), 3);
+      assert.equal(stream.getConsumerBackpressure(consumerB.id), 2);
+    });
+
+    it('should return to zero backpressure after mixed broadcast and targeted traffic is consumed', async () => {
+      let consumerA = stream.createConsumer();
+      let consumerB = stream.createConsumer();
+
+      let receivedA = [];
+      let receivedB = [];
+
+      let consumeA = (async () => {
+        for await (let packet of consumerA) {
+          receivedA.push(packet);
+        }
+      })();
+      let consumeB = (async () => {
+        for await (let packet of consumerB) {
+          receivedB.push(packet);
+        }
+      })();
+
+      await wait(10);
+
+      for (let i = 0; i < 20; i++) {
+        stream.write('broadcast' + i);
+        stream.writeToConsumer(consumerA.id, 'for-a' + i);
+        stream.writeToConsumer(consumerB.id, 'for-b' + i);
+      }
+
+      stream.close();
+      await Promise.all([consumeA, consumeB]);
+
+      assert.equal(receivedA.length, 40);
+      assert.equal(receivedB.length, 40);
+      assert.equal(consumerA.getBackpressure(), 0);
+      assert.equal(consumerB.getBackpressure(), 0);
+      assert.equal(stream.getBackpressure(), 0);
+    });
+
+    it('should preserve the order of broadcast and targeted packets', async () => {
+      let consumer = stream.createConsumer();
+
+      stream.write(1);
+      stream.writeToConsumer(consumer.id, 2);
+      stream.write(3);
+      stream.writeToConsumer(consumer.id, 4);
+      stream.close();
+
+      let packets = await consumeAllPackets(consumer);
+      let values = packets.filter(packet => !packet.done).map(packet => packet.value);
+
+      assert.equal(JSON.stringify(values), JSON.stringify([1, 2, 3, 4]));
+    });
+
+    it('should not deliver targeted packets to other consumers', async () => {
+      let consumerA = stream.createConsumer();
+      let consumerB = stream.createConsumer();
+
+      stream.writeToConsumer(consumerA.id, 'secret-a');
+      stream.write('public');
+      stream.writeToConsumer(consumerB.id, 'secret-b');
+      stream.close();
+
+      let packetsA = await consumeAllPackets(consumerA);
+      let packetsB = await consumeAllPackets(consumerB);
+
+      let valuesA = packetsA.filter(packet => !packet.done).map(packet => packet.value);
+      let valuesB = packetsB.filter(packet => !packet.done).map(packet => packet.value);
+
+      assert.equal(JSON.stringify(valuesA), JSON.stringify(['secret-a', 'public']));
+      assert.equal(JSON.stringify(valuesB), JSON.stringify(['public', 'secret-b']));
+    });
+
+    it('should not reset a consumer timeout when a packet is addressed to a different consumer', async () => {
+      let victim = stream.createConsumer(100);
+      let other = stream.createConsumer();
+
+      let error;
+      let consumeVictim = (async () => {
+        try {
+          for await (let packet of victim) {}
+        } catch (err) {
+          error = err;
+        }
+      })();
+
+      // Continuously write packets addressed only to the other consumer; this
+      // must not keep the victim's inactivity timeout alive.
+      let spam = (async () => {
+        for (let i = 0; i < 15; i++) {
+          stream.writeToConsumer(other.id, 'spam' + i);
+          await wait(20);
+        }
+      })();
+
+      await Promise.all([consumeVictim, spam]);
+
+      assert.notEqual(error, null);
+      assert.equal(error.name, 'TimeoutError');
+    });
+
+    it('should still reset a consumer timeout when a broadcast packet arrives', async () => {
+      let consumer = stream.createConsumer(100);
+
+      let error;
+      let received = [];
+      let consume = (async () => {
+        try {
+          for await (let packet of consumer) {
+            received.push(packet);
+          }
+        } catch (err) {
+          error = err;
+        }
+      })();
+
+      for (let i = 0; i < 5; i++) {
+        await wait(20);
+        stream.write('hello' + i);
+      }
+      stream.close();
+
+      await consume;
+
+      assert.equal(error, null);
+      assert.equal(received.length, 5);
+    });
+  });
+
+  describe('queue depth', () => {
+    beforeEach(async () => {
+      stream = new WritableConsumableStream();
+    });
+
+    afterEach(async () => {
+      cancelAllPendingWaits();
+      stream.close();
+    });
+
+    it('should report how many nodes of the shared queue a consumer is still pinning', async () => {
+      let idle = stream.createConsumer();
+      let active = stream.createConsumer();
+
+      let consumeActive = (async () => {
+        for await (let packet of active) {}
+      })();
+
+      await wait(10);
+
+      for (let i = 0; i < 10; i++) {
+        stream.writeToConsumer(active.id, 'for-active' + i);
+      }
+
+      // The idle consumer owes no work, but it still pins every node.
+      assert.equal(stream.getConsumerBackpressure(idle.id), 0);
+      assert.equal(stream.getConsumerQueueDepth(idle.id), 10);
+      assert.equal(stream.getQueueDepth(), 10);
+
+      await wait(50);
+
+      // Once the active consumer has drained, it owes no more work, but the
+      // queue is still holding every node on the idle consumer's behalf - and
+      // stream-level backpressure reports that, because it measures the queue.
+      assert.equal(stream.getConsumerBackpressure(active.id), 0);
+      assert.equal(stream.getConsumerBackpressure(idle.id), 0);
+      assert.equal(stream.getQueueDepth(), 10);
+      assert.equal(stream.getBackpressure(), 10);
+
+      stream.close();
+      await consumeActive;
+    });
+
+    it('should count packets addressed to any consumer towards stream backpressure', async () => {
+      let consumerA = stream.createConsumer();
+      let consumerB = stream.createConsumer();
+
+      stream.write('broadcast');
+      for (let i = 0; i < 5; i++) {
+        stream.writeToConsumer(consumerA.id, 'spam-a' + i);
+        stream.writeToConsumer(consumerB.id, 'spam-b' + i);
+      }
+
+      // Neither consumer owes more than 6 packets of work, but the queue is
+      // pinning all 11 nodes; stream backpressure must reflect the queue so
+      // that it can be used to limit spam.
+      assert.equal(stream.getConsumerBackpressure(consumerA.id), 6);
+      assert.equal(stream.getConsumerBackpressure(consumerB.id), 6);
+      assert.equal(stream.getBackpressure(), 11);
+    });
+
+    it('should not pin queue nodes for an idle consumer which is waiting inside next()', async () => {
+      let idle = stream.createConsumer();
+      let active = stream.createConsumer();
+
+      let consumeIdle = (async () => {
+        for await (let packet of idle) {}
+      })();
+      let consumeActive = (async () => {
+        for await (let packet of active) {}
+      })();
+
+      await wait(10);
+
+      for (let i = 0; i < 100; i++) {
+        stream.writeToConsumer(active.id, 'for-active' + i);
+      }
+
+      await wait(50);
+
+      // The idle consumer is parked at the tail of the queue with nothing of
+      // its own pending, so it must not pin the nodes which were addressed to
+      // the active consumer; otherwise the queue would grow without bound even
+      // though no consumer has any work left to do.
+      assert.equal(stream.getConsumerQueueDepth(idle.id), 0);
+      assert.equal(stream.getQueueDepth(), 0);
+      assert.equal(stream.getBackpressure(), 0);
+
+      stream.close();
+      await Promise.all([consumeIdle, consumeActive]);
+    });
+
+    it('should still deliver later packets to an idle consumer which skipped ahead', async () => {
+      let idle = stream.createConsumer();
+      let active = stream.createConsumer();
+
+      let receivedIdle = [];
+      let consumeIdle = (async () => {
+        for await (let packet of idle) {
+          receivedIdle.push(packet);
+        }
+      })();
+      let consumeActive = (async () => {
+        for await (let packet of active) {}
+      })();
+
+      await wait(10);
+
+      for (let i = 0; i < 10; i++) {
+        stream.writeToConsumer(active.id, 'for-active' + i);
+      }
+
+      await wait(20);
+
+      stream.write('broadcast');
+      stream.writeToConsumer(idle.id, 'for-idle');
+
+      await wait(20);
+
+      assert.equal(JSON.stringify(receivedIdle), JSON.stringify(['broadcast', 'for-idle']));
+
+      stream.close();
+      await Promise.all([consumeIdle, consumeActive]);
+    });
+
+    it('should report zero queue depth for a stream with no backlog', async () => {
+      let consumer = stream.createConsumer();
+
+      assert.equal(stream.getQueueDepth(), 0);
+      assert.equal(stream.getConsumerQueueDepth(consumer.id), 0);
+    });
+
+    it('should report zero queue depth for an unknown consumer', async () => {
+      assert.equal(stream.getConsumerQueueDepth(12345), 0);
+    });
+
+    it('should drop back to zero queue depth once every consumer has caught up', async () => {
+      let consumerA = stream.createConsumer();
+      let consumerB = stream.createConsumer();
+
+      let consumeA = (async () => {
+        for await (let packet of consumerA) {}
+      })();
+      let consumeB = (async () => {
+        for await (let packet of consumerB) {}
+      })();
+
+      await wait(10);
+
+      for (let i = 0; i < 10; i++) {
+        stream.write('hello' + i);
+      }
+
+      await wait(50);
+
+      assert.equal(stream.getQueueDepth(), 0);
+
+      stream.close();
+      await Promise.all([consumeA, consumeB]);
     });
   });
 });
