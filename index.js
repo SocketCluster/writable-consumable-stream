@@ -100,6 +100,7 @@ class WritableConsumableStream extends ConsumableStream {
 
   setConsumer(consumerId, consumer) {
     this._consumers.set(consumerId, consumer);
+    consumer.isAlive = true;
     if (!consumer.currentNode) {
       consumer.currentNode = this.tailNode;
     }
@@ -107,7 +108,7 @@ class WritableConsumableStream extends ConsumableStream {
 
   removeConsumer(consumerId) {
     let result = this._consumers.delete(consumerId);
-    if (this.removeConsumerCallback) this.removeConsumerCallback(consumerId);
+    if (result && this.removeConsumerCallback) this.removeConsumerCallback(consumerId);
     return result;
   }
 

@@ -719,6 +719,55 @@ describe('WritableConsumableStream', () => {
       assert.equal(stream.getConsumerCount(), 0);
     });
 
+    it('should invoke removeConsumerCallback once per consumer removal', async () => {
+      let removedConsumerIds = [];
+      let callbackStream = new WritableConsumableStream({
+        removeConsumerCallback: (consumerId) => removedConsumerIds.push(consumerId)
+      });
+
+      let consumer = callbackStream.createConsumer();
+
+      let packetPromise = consumer.next();
+      await wait(10);
+
+      // kill() destroys the consumer, then next() destroys it again when it
+      // reads the kill packet; the callback must only fire for the first one.
+      callbackStream.kill('custom kill data');
+
+      let packet = await withTimeout(packetPromise, 200, 'next() never settled after kill');
+
+      assert.equal(packet.done, true);
+      assert.deepEqual(removedConsumerIds, [consumer.id]);
+      assert.equal(callbackStream.getConsumerCount(), 0);
+    });
+
+    it('should report a consumer as alive again once it resumes consuming after a kill', async () => {
+      let consumer = stream.createConsumer();
+      stream.write('a');
+
+      let firstPacket = await consumer.next();
+
+      assert.equal(firstPacket.value, 'a');
+      assert.equal(consumer.isAlive, true);
+
+      stream.killConsumer(consumer.id);
+
+      let killPacket = await consumer.next();
+
+      assert.equal(killPacket.done, true);
+      assert.equal(consumer.isAlive, false);
+
+      // Consumers are revivable, so a consumer which resumes must not keep
+      // reporting itself as dead.
+      stream.write('b');
+
+      let resumedPacket = await consumer.next();
+
+      assert.equal(resumedPacket.value, 'b');
+      assert.equal(consumer.isAlive, true);
+      assert.equal(stream.hasConsumer(consumer.id), true);
+    });
+
     it('should not leave a killed consumer registered on the stream after it calls next()', async () => {
       let consumer = stream.createConsumer();
 
