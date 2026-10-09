@@ -127,6 +127,14 @@ class Consumer {
         return killPacket;
       }
 
+      // return() can remove currentNode while this call is parked below
+      // without leaving a kill packet behind; e.g. if a write earlier in the
+      // same tick already consumed _resolve. End the iteration quietly.
+      if (!this.currentNode) {
+        this._destroy();
+        return {value: undefined, done: true};
+      }
+
       if (!this.currentNode.next) {
         try {
           await this._waitForNextItem(this.timeout);

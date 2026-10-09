@@ -2142,4 +2142,185 @@ describe('WritableConsumableStream', () => {
       await Promise.all([consumeA, consumeB]);
     });
   });
+
+  describe('consumer teardown', () => {
+    beforeEach(async () => {
+      stream = new WritableConsumableStream();
+    });
+
+    afterEach(async () => {
+      cancelAllPendingWaits();
+      stream.close();
+    });
+
+    it('should end a parked iteration when return() is called in the same tick as a write', async () => {
+      let consumer = stream.createConsumer();
+
+      let error;
+      let ended = false;
+      let consume = (async () => {
+        try {
+          for await (let packet of consumer) {}
+          ended = true;
+        } catch (err) {
+          error = err;
+        }
+      })();
+
+      await wait(10);
+
+      stream.write('hello');
+      consumer.return();
+
+      await consume;
+
+      assert.equal(error, undefined);
+      assert.equal(ended, true);
+      assert.equal(consumer.isAlive, false);
+    });
+
+    it('should end a parked iteration when return() is called in the same tick as a targeted write', async () => {
+      let consumer = stream.createConsumer();
+
+      let error;
+      let ended = false;
+      let consume = (async () => {
+        try {
+          for await (let packet of consumer) {}
+          ended = true;
+        } catch (err) {
+          error = err;
+        }
+      })();
+
+      await wait(10);
+
+      stream.writeToConsumer(consumer.id, 'hello');
+      consumer.return();
+
+      await consume;
+
+      assert.equal(error, undefined);
+      assert.equal(ended, true);
+    });
+
+    it('should end a parked iteration when return() is called in the same tick as a close', async () => {
+      let consumer = stream.createConsumer();
+
+      let error;
+      let ended = false;
+      let consume = (async () => {
+        try {
+          for await (let packet of consumer) {}
+          ended = true;
+        } catch (err) {
+          error = err;
+        }
+      })();
+
+      await wait(10);
+
+      stream.close('bye');
+      consumer.return();
+
+      await consume;
+
+      assert.equal(error, undefined);
+      assert.equal(ended, true);
+    });
+
+    it('should end a parked iteration when return() is called with no write pending', async () => {
+      let consumer = stream.createConsumer();
+
+      let error;
+      let ended = false;
+      let consume = (async () => {
+        try {
+          for await (let packet of consumer) {}
+          ended = true;
+        } catch (err) {
+          error = err;
+        }
+      })();
+
+      await wait(10);
+
+      consumer.return();
+
+      await consume;
+
+      assert.equal(error, undefined);
+      assert.equal(ended, true);
+    });
+
+    it('should allow a consumer to be reused after return() races a write', async () => {
+      let consumer = stream.createConsumer();
+
+      let firstRun = [];
+      let consumeFirst = (async () => {
+        for await (let packet of consumer) {
+          firstRun.push(packet);
+        }
+      })();
+
+      await wait(10);
+
+      stream.write('dropped');
+      consumer.return();
+      await consumeFirst;
+
+      let secondRun = [];
+      let consumeSecond = (async () => {
+        for await (let packet of consumer) {
+          secondRun.push(packet);
+        }
+      })();
+
+      await wait(10);
+
+      stream.write('hello');
+      stream.close('end');
+      await consumeSecond;
+
+      assert.equal(JSON.stringify(secondRun), JSON.stringify(['hello']));
+    });
+
+    it('should not leave a consumer registered on the stream after return() races a write', async () => {
+      let consumer = stream.createConsumer();
+
+      let consume = (async () => {
+        for await (let packet of consumer) {}
+      })();
+
+      await wait(10);
+
+      stream.write('hello');
+      consumer.return();
+
+      await consume;
+
+      assert.equal(stream.hasConsumer(consumer.id), false);
+      assert.equal(stream.getConsumerCount(), 0);
+    });
+
+    it('should not crash when a second iteration is parked on a consumer which is torn down', async () => {
+      let consumer = stream.createConsumer();
+
+      // Concurrent iteration is unsupported, but must not throw a TypeError.
+      let errors = [];
+      consumer.next().catch(err => errors.push(err));
+      let second = consumer.next().catch(err => errors.push(err));
+
+      await wait(10);
+
+      stream.write('hello');
+      consumer.return();
+
+      // The first call shares the single _resolve slot, so it never settles.
+      await second;
+      await wait(10);
+
+      assert.equal(JSON.stringify(errors.map(err => err.name)), JSON.stringify([]));
+    });
+  });
 });
