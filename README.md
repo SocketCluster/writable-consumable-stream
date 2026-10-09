@@ -112,4 +112,15 @@ setInterval(() => {
 }, 100);
 ```
 
+### Releasing a consumer
+
+Killing or closing a consumer removes it from the stream but does not discard the
+packets which it has not consumed yet - this is what allows a consumer to resume
+later without missing any messages. For as long as a consumer is still reachable,
+those packets, and everything written to the stream afterwards, stay in memory.
+
+So once you are finished with a consumer, `break` out of its `for await...of` loop,
+or kill it with `stream.killConsumer(consumer.id)` (or `stream.kill()` for all
+consumers) and discard any remaining references to it.
+
 See `test/` directory for additional examples.

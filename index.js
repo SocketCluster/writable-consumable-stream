@@ -28,7 +28,7 @@ class WritableConsumableStream extends ConsumableStream {
       data: {value, done},
       next: null
     };
-    if (consumerId) {
+    if (consumerId !== undefined) {
       dataNode.consumerId = consumerId;
     }
     this.tailNode.next = dataNode;
@@ -48,10 +48,16 @@ class WritableConsumableStream extends ConsumableStream {
   }
 
   writeToConsumer(consumerId, value) {
+    if (consumerId == null) {
+      throw new TypeError('Cannot write to a consumer without a valid consumer id');
+    }
     this._write(value, false, consumerId);
   }
 
   closeConsumer(consumerId, value) {
+    if (consumerId == null) {
+      throw new TypeError('Cannot close a consumer without a valid consumer id');
+    }
     this._write(value, true, consumerId);
   }
 

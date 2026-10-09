@@ -6,17 +6,38 @@ let pendingTimeoutSet = new Set();
 function wait(duration) {
   return new Promise((resolve) => {
     let timeout = setTimeout(() => {
-      pendingTimeoutSet.clear(timeout);
+      pendingTimeoutSet.delete(timeout);
       resolve();
     }, duration);
     pendingTimeoutSet.add(timeout);
   });
 }
 
+async function consumeAllPackets(consumer) {
+  let packets = [];
+  while (true) {
+    let packet = await consumer.next();
+    packets.push(packet);
+    if (packet.done) break;
+  }
+  return packets;
+}
+
+function withTimeout(promise, duration, message) {
+  return Promise.race([
+    promise,
+    (async () => {
+      await wait(duration);
+      throw new Error(message);
+    })()
+  ]);
+}
+
 function cancelAllPendingWaits() {
   for (let timeout of pendingTimeoutSet) {
     clearTimeout(timeout);
   }
+  pendingTimeoutSet.clear();
 }
 
 describe('WritableConsumableStream', () => {
@@ -674,6 +695,48 @@ describe('WritableConsumableStream', () => {
       await wait(10);
 
       assert.equal(consumer.getBackpressure(), 0);
+    });
+
+    it('should deliver the kill packet if the consumer was killed while it was not waiting for a packet', async () => {
+      let consumer = stream.createConsumer();
+      stream.write('a');
+
+      let firstPacket = await consumer.next();
+
+      // The consumer is now between iterations rather than suspended
+      // inside next(), which is when kill() used to be swallowed.
+      stream.killConsumer(consumer.id, 'custom kill data');
+
+      let secondPacket = await withTimeout(
+        consumer.next(),
+        200,
+        'next() never resolved after the consumer was killed'
+      );
+
+      assert.equal(firstPacket.value, 'a');
+      assert.equal(secondPacket.done, true);
+      assert.equal(secondPacket.value, 'custom kill data');
+      assert.equal(stream.getConsumerCount(), 0);
+    });
+
+    it('should not leave a killed consumer registered on the stream after it calls next()', async () => {
+      let consumer = stream.createConsumer();
+
+      stream.killConsumer(consumer.id, 'custom kill data');
+
+      assert.equal(stream.getConsumerCount(), 0);
+
+      let packet = await withTimeout(
+        consumer.next(),
+        200,
+        'next() never resolved after the consumer was killed'
+      );
+
+      assert.equal(packet.done, true);
+      assert.equal(consumer.isAlive, false);
+      // A killed consumer may briefly re-register itself inside next()
+      // (consumers are revivable by design), but it must not stay registered.
+      assert.equal(stream.getConsumerCount(), 0);
     });
   });
 
@@ -1431,7 +1494,7 @@ describe('WritableConsumableStream', () => {
       assert.equal(receivedPacketsB[0].value, 'hello0');
       assert.equal(receivedPacketsB[9].value, 'hello9');
 
-      stream.close(consumerB.id);
+      stream.closeConsumer(consumerB.id);
       await wait(10);
 
       assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
@@ -1491,6 +1554,100 @@ describe('WritableConsumableStream', () => {
       assert.equal(receivedPacketsB[10].value, 'close all');
 
       assert.equal(stream.getConsumerCount(), 0); // Check internal cleanup.
+    });
+
+    it('should not deliver a targeted packet to other consumers when the consumer id is falsy but valid', async () => {
+      let consumerIds = [0, ''];
+      let index = 0;
+      let falsyIdStream = new WritableConsumableStream({
+        generateConsumerId: () => consumerIds[index++]
+      });
+      let consumerA = falsyIdStream.createConsumer(); // id 0
+      let consumerB = falsyIdStream.createConsumer(); // id ''
+
+      falsyIdStream.writeToConsumer(consumerA.id, 'only for A');
+      falsyIdStream.close('close all');
+
+      let receivedPacketsA = await consumeAllPackets(consumerA);
+      let receivedPacketsB = await consumeAllPackets(consumerB);
+
+      assert.equal(receivedPacketsA.length, 2);
+      assert.equal(receivedPacketsA[0].value, 'only for A');
+      assert.equal(receivedPacketsA[1].done, true);
+
+      // consumerB must never see the packet addressed to consumerA.
+      assert.equal(receivedPacketsB.length, 1);
+      assert.equal(receivedPacketsB[0].done, true);
+      assert.equal(receivedPacketsB[0].value, 'close all');
+    });
+
+    it('should throw and write nothing if writeToConsumer is given a null or undefined consumer id', async () => {
+      let consumerA = stream.createConsumer();
+      let consumerB = stream.createConsumer();
+
+      for (let badConsumerId of [undefined, null]) {
+        assert.throws(() => {
+          stream.writeToConsumer(badConsumerId, 'private message');
+        }, TypeError);
+        assert.throws(() => {
+          stream.closeConsumer(badConsumerId, 'private close');
+        }, TypeError);
+      }
+
+      assert.equal(stream.getBackpressure(), 0); // Nothing was appended to the stream.
+
+      stream.close('close all');
+
+      let receivedPacketsA = await consumeAllPackets(consumerA);
+      let receivedPacketsB = await consumeAllPackets(consumerB);
+
+      // Neither consumer saw the rejected 'private message' packet.
+      assert.equal(receivedPacketsA.length, 1);
+      assert.equal(receivedPacketsA[0].value, 'close all');
+      assert.equal(receivedPacketsB.length, 1);
+      assert.equal(receivedPacketsB[0].value, 'close all');
+    });
+
+    it('should terminate a pending next() call when return() is invoked', async () => {
+      let consumer = stream.createConsumer();
+
+      // The consumer is suspended inside next() with nothing to read.
+      let packetPromise = consumer.next();
+      await wait(10);
+
+      consumer.return();
+
+      let packet = await withTimeout(
+        packetPromise,
+        200,
+        'next() never settled after return() was invoked'
+      );
+
+      assert.equal(packet.done, true);
+      assert.equal(stream.getConsumerCount(), 0);
+    });
+
+    it('should clear the active timeout when return() is invoked', async () => {
+      let consumer = stream.createConsumer(50);
+
+      let packetPromise = consumer.next();
+      await wait(10);
+
+      consumer.return();
+
+      let packet = await withTimeout(
+        packetPromise,
+        200,
+        'next() never settled after return() was invoked'
+      );
+
+      assert.equal(packet.done, true);
+      // No dangling timer may be left behind to fire at a dead consumer.
+      assert.equal(consumer._timeoutId, undefined);
+
+      await wait(100); // Past the original 50ms timeout.
+
+      assert.equal(stream.getConsumerCount(), 0);
     });
   });
 

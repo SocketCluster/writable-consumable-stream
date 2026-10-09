@@ -96,14 +96,6 @@ class Consumer {
     this.stream.setConsumer(this.id, this);
 
     while (true) {
-      if (!this.currentNode.next) {
-        try {
-          await this._waitForNextItem(this.timeout);
-        } catch (error) {
-          this._destroy();
-          throw error;
-        }
-      }
       if (this._killPacket) {
         this._destroy();
         let killPacket = this._killPacket;
@@ -112,10 +104,20 @@ class Consumer {
         return killPacket;
       }
 
+      if (!this.currentNode.next) {
+        try {
+          await this._waitForNextItem(this.timeout);
+        } catch (error) {
+          this._destroy();
+          throw error;
+        }
+        continue;
+      }
+
       this.currentNode = this.currentNode.next;
       this.releaseBackpressure(this.currentNode.data);
 
-      if (this.currentNode.consumerId && this.currentNode.consumerId !== this.id) {
+      if (this.currentNode.consumerId !== undefined && this.currentNode.consumerId !== this.id) {
         continue;
       }
 
@@ -129,7 +131,15 @@ class Consumer {
 
   return() {
     delete this.currentNode;
+    this.clearActiveTimeout();
     this._destroy();
+
+    if (this._resolve) {
+      this._killPacket = {value: undefined, done: true};
+      this._resolve();
+      delete this._resolve;
+    }
+
     return {};
   }
 
